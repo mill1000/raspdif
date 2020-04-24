@@ -16,7 +16,6 @@
 #endif
 
 #define GPIO_BASE_OFFSET (0x00200000)
-#define PADS_BASE_OFFSET (0x0010002C)
 
 typedef enum __attribute__((packed))
 {

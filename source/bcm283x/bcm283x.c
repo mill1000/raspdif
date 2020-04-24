@@ -45,9 +45,6 @@ void bcm283x_init()
   gpioInit(virtualBase + GPIO_BASE_OFFSET);
   dmaInit(virtualBase + DMA_BASE_OFFSET);
   pcmInit(virtualBase + PCM_BASE_OFFSET);
-
-  //uint32_t* pads = virtualBase + 0x10002c;
-  //*pads = 0x5A << 24 | 1 << 4 | 7;
 }
 
 /**
