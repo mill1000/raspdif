@@ -77,6 +77,23 @@ void dmaSetControlBlock(dma_channel_t channel, const dma_control_block_t* contro
 }
 
 /**
+  @brief  Get the ative control block for the selected DMA channel
+
+  @param  channel DMA channel number
+  @retval dma_control_block_t* - Bus address of active control block
+*/
+const dma_control_block_t* dmaGetControlBlock(dma_channel_t channel)
+{
+  bcm283x_dma_channel_t* handle = dmaGetChannel(channel);
+
+  const dma_control_block_t* control = handle->CONBLK_AD;
+
+  RMB();
+
+  return control;
+}
+
+/**
   @brief  Enable/disable select DMA channel
 
   @param  channel DMA channel number
