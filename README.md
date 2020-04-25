@@ -21,4 +21,6 @@ ffmpeg  -i some_audio_file.flac -f s16le -acodec pcm_s16le - | sudo ./build/rasp
 ## Signal Levels
 S/PDIF specification calls for .5 V Vpp when 75 Ohm is connected across the output. To achieve these level from the RPi's nominal 3.3 V signaling a simple resisitve divider can be build with a 390 Ohm resister is series with the output.
 
+![Resistive Divider](raspdif_divider.png)
+
 However, my DAC and receiver have not had an issue receiving the full 3.3 V signal. Use at your own risk.
