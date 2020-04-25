@@ -86,7 +86,7 @@ const dma_control_block_t* dmaGetControlBlock(dma_channel_t channel)
 {
   bcm283x_dma_channel_t* handle = dmaGetChannel(channel);
 
-  const dma_control_block_t* control = handle->CONBLK_AD;
+  const dma_control_block_t* control = (const dma_control_block_t*) handle->CONBLK_AD;
 
   RMB();
 
