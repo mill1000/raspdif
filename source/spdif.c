@@ -1,3 +1,4 @@
+#include <string.h>
 #include <arm_acle.h>
 
 #include "spdif.h"
@@ -10,6 +11,13 @@
 #define SPDIF_PREAMBLE_W 0xE4 // Sub-frame 2
 #define SPDIF_PREAMBLE_B 0xE8 // Sub-frame 1, start of block
 
+/**
+  @brief  Encode the provided 32 bit data into BMC with the provided preamble
+
+  @param  preamble Preamble type for this subframe
+  @param  data 32 bit sub-frame data to encode
+  @retval uint64_t - BMC encoded subframe
+*/
 static uint64_t spdifEncodeBiphaseMark(spdif_preamble_t preamble, uint32_t data)
 {
   // Biphase Marck
@@ -89,6 +97,14 @@ static uint64_t spdifEncodeBiphaseMark(spdif_preamble_t preamble, uint32_t data)
   return bmc.raw;
 }
 
+/**
+  @brief  Update and encode a SPDIF subframe with the provided sample and preamble
+
+  @param  subframe SPDIF subframe buffer with channel status data
+  @param  preamble Preamble type for this subframe
+  @param  sample PCM audio sample
+  @retval uint64_t - BMC encoded subframe
+*/
 uint64_t spdifBuildSubframe(spdif_subframe_t* subframe, spdif_preamble_t preamble, int16_t sample)
 {
   subframe->sample = sample << 4; // Scale to 20 bits
@@ -97,6 +113,49 @@ uint64_t spdifBuildSubframe(spdif_subframe_t* subframe, spdif_preamble_t preambl
   subframe->parity = 0; // Reset partiy before calculating
   subframe->parity = __builtin_popcount(subframe->raw) % 2;
 
-  // Encode to biphae mark
+  // Encode to biphase mark. PCM peripheral transmits MSBit first so bitflip data
   return spdifEncodeBiphaseMark(preamble, __rbit(subframe->raw));
+}
+
+/**
+  @brief  Populate the SPDIF block with channel status data
+
+  @param  block SPDIF block to populate
+  @retval none
+*/
+void spdifPopulateChannelStatus(spdif_block_t* block)
+{
+ // Define the SPDIF channel status data
+  spdif_pcm_channel_status_t channel_status_a;
+  memset(&channel_status_a, 0, sizeof(spdif_pcm_channel_status_t));
+
+  channel_status_a.aes3 = 0; // SPDIF aka consumer use
+  channel_status_a.compressed = 0; // PCM
+  channel_status_a.copy_permit = 1; // No copy protection
+  channel_status_a.pcm_mode = 0; // 2 channel, no pre-emphasis
+  channel_status_a.mode = 0;
+
+  channel_status_a.category_code = 0; // General
+
+  channel_status_a.source_number = 0; // Not indicated
+  channel_status_a.channel_number = 1; // Left channel
+
+  channel_status_a.sample_frequency = 1; // Not indicated
+  channel_status_a.clock_accuracy = 0; // Level 2 TODO What is L2?
+
+  channel_status_a.word_length = 0; // Max sample length is 20 bits
+  channel_status_a.sample_word_length = 0; // Not indicated
+  channel_status_a.original_sampling_frequency = 0; // Not indicated
+
+  // Duplicate channel status for B and update channel number
+  spdif_pcm_channel_status_t channel_status_b = channel_status_a;
+  channel_status_b.channel_number = 2;
+
+  // Copy channel status into each frame
+  for (uint8_t i = 0; i < SPDIF_FRAME_COUNT; i++)
+  {
+    spdif_frame_t* frame = &block->frames[i];
+    frame->a.channel_status = channel_status_a.raw[i / 8] >> (i % 8);
+    frame->b.channel_status = channel_status_b.raw[i / 8] >> (i % 8);
+  }
 }

@@ -283,22 +283,7 @@ void pcmEnable(bool transmit, bool receive)
   WMB();
 
   pcm->CS_A.EN = 1;
-  
+
   pcm->CS_A.TXON = transmit;
   pcm->CS_A.RXON = receive;
-}
-
-void pcmDump()
-{
-  LOGI("PCM", "Registers");
-  LOGI("PCM", "CS_A\t\t0x%08X", pcm->CS_A);
-  LOGI("PCM", "MODE_A\t\t0x%08X", pcm->MODE_A);
-  LOGI("PCM", "RXC_A\t\t0x%08X", pcm->RXC_A);
-  LOGI("PCM", "TXC_A\t\t0x%08X", pcm->TXC_A);
-  LOGI("PCM", "DREQ_A\t\t0x%08X", pcm->DREQ_A);
-  LOGI("PCM", "INTEN_A\t\t0x%08X", pcm->INTEN_A);
-  LOGI("PCM", "INTSTC_A\t0x%08X", pcm->INTSTC_A);
-  LOGI("PCM", "GRAY\t\t0x%08X", pcm->GRAY);
-
-  RMB();
 }

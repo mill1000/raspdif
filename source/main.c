@@ -18,8 +18,7 @@
 
 #define RASPDIF_SAMPLE_RATE  44.1e3 // 44.1 kHz
 #define RASPDIF_BUFFER_COUNT 3      // Number of entries in the cirular buffer
-#define RASPDIF_BUFFER_SIZE  2048   // Number of bytes in each buffer entry
-static_assert(RASPDIF_BUFFER_SIZE <=  UINT16_MAX, "SPDIF buffer must be representable in 16 bits.");
+#define RASPDIF_BUFFER_SIZE  2048   // Number of samples in each buffer entry. 128 (coded) bits per sample
 
 typedef struct raspdif_buffer_t
 {
@@ -31,6 +30,7 @@ typedef struct raspdif_buffer_t
     uint32_t b_lsb;
   } sample[RASPDIF_BUFFER_SIZE];
 } raspdif_buffer_t;
+static_assert(sizeof(raspdif_buffer_t) <=  UINT16_MAX, "SPDIF buffer must be representable in 16 bits.");
 
 typedef struct raspdif_control_t
 {
@@ -67,57 +67,13 @@ void raspdifShutdown()
 }
 
 /**
-  @brief  Callback function for POSIX signals
-
-  @param  signal Received POSIX signal
-  @retval none
-*/
-static void signalHandler(int32_t signal)
-{
-  LOGW(TAG, "Received signal %s (%d).", sys_siglist[signal], signal);
-
-  raspdifShutdown();
-
-  // Termiante
-  exit(EXIT_SUCCESS);
-}
-
-/**
-  @brief  Reigster a handler for all POSIX signals 
-          that would cause termination
-
-  @param  none
-  @retval none
-*/
-void registerSignalHandler()
-{
-  struct sigaction sa;
-  memset(&sa, 0, sizeof(sa));
-
-  sa.sa_handler = &signalHandler;
-
-  // Register fatal signal handlers
-  sigaction(SIGHUP, &sa, NULL);
-  sigaction(SIGINT, &sa, NULL);
-  sigaction(SIGQUIT, &sa, NULL);
-  sigaction(SIGILL, &sa, NULL);
-  sigaction(SIGABRT, &sa, NULL);
-  sigaction(SIGFPE, &sa, NULL);
-  sigaction(SIGSEGV, &sa, NULL);
-  sigaction(SIGPIPE, &sa, NULL);
-  sigaction(SIGALRM, &sa, NULL);
-  sigaction(SIGTERM, &sa, NULL);
-  sigaction(SIGBUS, &sa, NULL);
-}
-
-/**
   @brief  Generate the DMA controls blocks for the code buffers
 
   @param  bControl raspdif_control_t structure in bus domain
   @param  vControl raspdif_control_t strucutre in virtual domain
   @retval none
 */
-static void generateDmaControlBlocks(raspdif_control_t* bControl, raspdif_control_t* vControl)
+static void raspdifGenerateDmaControlBlocks(raspdif_control_t* bControl, raspdif_control_t* vControl)
 {
   // Construct references to PCM peripheral at its bus addresses
   bcm283x_pcm_t* bPcm = (bcm283x_pcm_t*) (BCM283X_BUS_PERIPHERAL_BASE + PCM_BASE_OFFSET);
@@ -148,7 +104,14 @@ static void generateDmaControlBlocks(raspdif_control_t* bControl, raspdif_contro
   assert(vControl->controlBlocks[RASPDIF_BUFFER_COUNT - 1].nextControlBlock == &bControl->controlBlocks[0]);
 }
 
-static void configureHardware(dma_channel_t dmaChannel, double sampleRate_Hz)
+/**
+  @brief  Initalize hardware for SPDIF generation. Include DMA, Clock, PCM and GPIO config
+
+  @param  dmaChannel DMA channel to use for transfering buffers to PCM
+  @param  sampleRate_Hz Audio sample rate in Hertz for clock configuration
+  @retval none
+*/
+static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
 {
   // Initialize BCM peripheral drivers
   bcm283x_init();
@@ -183,7 +146,7 @@ static void configureHardware(dma_channel_t dmaChannel, double sampleRate_Hz)
   raspdif_control_t* vControl = (raspdif_control_t*) virtualBase;
 
   // Generate DMA control blocks for each SPDIF buffer
-  generateDmaControlBlocks(bControl, vControl);
+  raspdifGenerateDmaControlBlocks(bControl, vControl);
 
   // Save references to control structures in both domains
   raspdif.control.bus = bControl;
@@ -260,10 +223,19 @@ static void configureHardware(dma_channel_t dmaChannel, double sampleRate_Hz)
   gpioConfigureMask(1 << 21 , &gpioConfig);
 }
 
-static bool bufferSamples(raspdif_buffer_t* buffer, spdif_block_t* block, int16_t sampleA, int16_t sampleB)
+/**
+  @brief  Encode and store the audio samples into the target buffer
+
+  @param  buffer Buffer to store encoded samples to
+  @param  block SPDIF block so proper frames can be encoded
+  @param  sampleA Audio sampel for first channel
+  @param  sampleB Audio sample for second channel
+  @retval bool - Provided buffer is now full
+*/
+static bool raspdifBufferSamples(raspdif_buffer_t* buffer, spdif_block_t* block, int16_t sampleA, int16_t sampleB)
 {
   static uint8_t frame_index = 0; // Position withing SPDIF block
-  static uint32_t sample_count = 0; // Number of samples received
+  static uint32_t sample_count = 0; // Number of samples received. At 44.1 kHz will overflow at 13 hours
 
   spdif_frame_t* frame = &block->frames[frame_index];
 
@@ -282,6 +254,50 @@ static bool bufferSamples(raspdif_buffer_t* buffer, spdif_block_t* block, int16_
 }
 
 /**
+  @brief  Callback function for POSIX signals
+
+  @param  signal Received POSIX signal
+  @retval none
+*/
+static void signalHandler(int32_t signal)
+{
+  LOGW(TAG, "Received signal %s (%d).", sys_siglist[signal], signal);
+
+  raspdifShutdown();
+
+  // Termiante
+  exit(EXIT_SUCCESS);
+}
+
+/**
+  @brief  Reigster a handler for all POSIX signals 
+          that would cause termination
+
+  @param  none
+  @retval none
+*/
+void registerSignalHandler()
+{
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));
+
+  sa.sa_handler = &signalHandler;
+
+  // Register fatal signal handlers
+  sigaction(SIGHUP, &sa, NULL);
+  sigaction(SIGINT, &sa, NULL);
+  sigaction(SIGQUIT, &sa, NULL);
+  sigaction(SIGILL, &sa, NULL);
+  sigaction(SIGABRT, &sa, NULL);
+  sigaction(SIGFPE, &sa, NULL);
+  sigaction(SIGSEGV, &sa, NULL);
+  sigaction(SIGPIPE, &sa, NULL);
+  sigaction(SIGALRM, &sa, NULL);
+  sigaction(SIGTERM, &sa, NULL);
+  sigaction(SIGBUS, &sa, NULL);
+}
+
+/**
   @brief  Main entry point
 
   @param  argc
@@ -296,37 +312,16 @@ int main (int argc, char* argv[])
   // Increase logging level to debug
   logSetLevel(LOG_LEVEL_DEBUG);
 
-  configureHardware(dma_channel_13, RASPDIF_SAMPLE_RATE);
-
-  // Define the SPDIF channel status data
-  spdif_pcm_channel_status_t channel_status_a;
-  memset(&channel_status_a, 0, sizeof(spdif_pcm_channel_status_t));
-
-  channel_status_a.aes3 = 0; // SPDIF
-  channel_status_a.compressed = 0; // PCM
-  channel_status_a.copy_permit = 1; // No copy protection
-  channel_status_a.pcm_mode = 0; // 2 channel, no pre-emphasis
-  channel_status_a.mode = 0;
-
-  channel_status_a.word_length = 1;
-
-  channel_status_a.channel_number = 1;
-
-  // Duplicate channel status for B and update channel number
-  spdif_pcm_channel_status_t channel_status_b = channel_status_a;
-  channel_status_b.channel_number = 2;
+  // Initalize hardware and buffers
+  raspdifInit(dma_channel_13, RASPDIF_SAMPLE_RATE);
 
   // Allocate storage for a SPDIF block
   spdif_block_t block;
   memset(&block, 0, sizeof(block));
 
-  // Copy channel status into each frame
-  for (uint8_t i = 0; i < SPDIF_FRAME_COUNT; i++)
-  {
-    block.frames[i].a.channel_status = channel_status_a.raw[i / 8] >> (i % 8);
-    block.frames[i].b.channel_status = channel_status_b.raw[i / 8] >> (i % 8);
-  }
-
+  // Populate each frame with channel status data
+  spdifPopulateChannelStatus(&block);
+  
   // Re-open stdin as binary
   freopen(NULL, "rb", stdin);
   
@@ -339,7 +334,7 @@ int main (int argc, char* argv[])
   {
     raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
 
-    bool full = bufferSamples(buffer, &block, samples[0], samples[1]);
+    bool full = raspdifBufferSamples(buffer, &block, samples[0], samples[1]);
     
     if (full)
       buffer_index++;
@@ -353,7 +348,6 @@ int main (int argc, char* argv[])
 
   // Reset to first buffer.
   buffer_index = 0;
-  raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
   
   // Read stdin until it's empty
   while(!feof(stdin))
@@ -362,22 +356,20 @@ int main (int argc, char* argv[])
 
     if (activeControl == &raspdif.control.bus->controlBlocks[buffer_index])
     {
-      microsleep(50e3);
+      // If DMA is using current buffer, delay by approx 1 buffer's duration
+      microsleep(1e6 * (RASPDIF_BUFFER_SIZE / RASPDIF_SAMPLE_RATE));
       continue;
     }
 
     if (fread(samples, sizeof(int16_t), 2, stdin) > 0)
     {
-      bool full = bufferSamples(buffer, &block, samples[0], samples[1]);
+      raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
+      bool full = raspdifBufferSamples(buffer, &block, samples[0], samples[1]);
 
       if (full)
-      {
         buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
-        buffer = &raspdif.control.virtual->buffers[buffer_index];
-      }
     }
   }
-
   // TODO How do we wait until the end of the stream
 
   // Shutdown in a safe mamner

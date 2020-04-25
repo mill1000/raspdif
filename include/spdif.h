@@ -74,5 +74,6 @@ typedef struct spdif_block_t
 } spdif_block_t;
 
 uint64_t spdifBuildSubframe(spdif_subframe_t* subframe, spdif_preamble_t preamble, int16_t sample);
+void spdifPopulateChannelStatus(spdif_block_t* block);
 
 #endif
