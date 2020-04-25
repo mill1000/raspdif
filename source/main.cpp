@@ -5,173 +5,60 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <arm_acle.h>
 #include <fcntl.h>
-#include <queue>
+#include <bcm_host.h>
 
 #include "log.h"
 #include "bcm283x.h"
+#include "memory.h"
+#include "utils.h"
+#include "spdif.h"
 
 #define TAG "MAIN"
 
-// Inverted if preceding state was 1
-// Which shouldn't happen due to even parity
-#define PREAMBLE_M 0xE2 // Sub-frame 1
-#define PREAMBLE_W 0xE4 // Sub-frame 2
-#define PREAMBLE_B 0xE8 // Sub-frame 1, start of block
+#define RASPDIF_SAMPLE_RATE  44.1e3 // 44.1 kHz
+#define RASPDIF_BUFFER_COUNT 3      // Number of entries in the cirular buffer
+#define RASPDIF_BUFFER_SIZE  2048   // Number of bytes in each buffer entry
+static_assert(RASPDIF_BUFFER_SIZE <=  UINT16_MAX, "SPDIF buffer must be representable in 16 bits.");
 
-typedef enum spdif_preamble_t
+static struct
 {
-  spdif_preamble_m, // 1st sub-frame, left channel
-  spdif_preamble_w, // 2nd sub-frame, right channel
-  spdif_preamble_b, // 1st sub-frame, left channel, start of block
-} spdif_preamble_t;
+  memory_physical_t memory;
+  dma_channel_t     dmaChannel;
+} raspdif;
 
-typedef union spdif_pcm_channel_status_t
+typedef struct raspdif_buffer_t
 {
   struct
   {
-    // Byte 0
-    uint8_t aes3 : 1; // 0 for SPDIF
-    uint8_t compressed : 1; // 0 for PCM
-    uint8_t copy_permit : 1; 
-    uint8_t pcm_mode : 3; // 000 2 channel no pre-emphasis  TODO
-    uint8_t mode : 2; // Channel status format/mode 00
-    
-    // Byte 1
-    uint8_t category_code;
+    uint32_t a_msb;
+    uint32_t a_lsb;
+    uint32_t b_msb;
+    uint32_t b_lsb;
+  } sample[RASPDIF_BUFFER_SIZE];
+} raspdif_buffer_t;
 
-    // Byte 2
-    uint8_t source_number : 4; // 000 Do not use
-    uint8_t channel_number : 4; // 1 - Left channel, 2 - Right chanel
-
-    // Byte 3
-    uint8_t sample_frequency : 4; // 0 - 44.1 kHz, 1 - Not indicated
-    uint8_t clock_accuracy : 2;
-    uint8_t _reserved : 2;
-
-    // Byte 4
-    uint8_t word_length : 1; // 0 - 20 bit max sample length
-    uint8_t sample_word_length : 3; // 0 - Not indicated 1 - 16 bits
-    uint8_t original_sampling_frequency : 4; // 0 not indicated
-
-    uint8_t _reserved2[19];
-  };
-  uint8_t raw[24]; // 192 bits
-} spdif_pcm_channel_status_t;
-
-typedef union spdif_subframe_t
+typedef struct raspdif_control_t
 {
-  struct
-  {
-    uint32_t preamble       : 4; // Preamble takes 4 bits of time but is not stored here
-    uint32_t aux            : 4;
-    uint32_t sample         : 20;
-    uint32_t validity       : 1;
-    uint32_t user_data      : 1;
-    uint32_t channel_status : 1;
-    uint32_t parity         : 1; // Even Parity. Set to make number of 1's even
-  };
-  uint32_t raw;
-} spdif_subframe_t;
+  dma_control_block_t controlBlocks[RASPDIF_BUFFER_COUNT];
+  raspdif_buffer_t    buffers[RASPDIF_BUFFER_COUNT];
+} raspdif_control_t;
 
-typedef struct spdif_frame_t
+/**
+  @brief  Shutdown the peripherals and free any allocated memory
+
+  @param  none
+  @retval none
+*/
+void raspdifShutdown()
 {
-  spdif_subframe_t a;
-  spdif_subframe_t b;
-} spdif_frame_t;
-
-typedef struct spdif_block_t
-{
-  spdif_frame_t frames[192];
-} spdif_block_t;
-
-
- uint64_t encodeBiphaseMark(spdif_preamble_t preamble, uint32_t data)
-{
-  //LOGI(TAG, "BMC Input %08X", data);
+  // Disable PCM and DMA
+  pcmReset();
+  clockEnable(clock_peripheral_pcm, false);
+  dmaEnable(raspdif.dmaChannel, false);
   
-  // BMC LUT for nibbles
-  // Invert if last state was 1
-  static uint8_t bmcLut0[16] = 
-  {
-    0xCC, 0xCD, 0xCB, 0xCA,
-    0xD3, 0xD2, 0xD4, 0xD5,
-    0xB3, 0xB2, 0xB4, 0xB5,
-    0xAC, 0xAD, 0xAB, 0xAA,
-  };
-
-  union
-  {
-    uint8_t  byte[8];
-    uint64_t raw;
-  } bmc;
-  // First subframe
-  // Ignored    | Aux       | Sample                              | Valid | User | Status | Parity
-  // 0000       | 0000      | 0000 0000 0000 0000 0000            | 1     | 0    | 0      | 1
-  // 11101000   | 1100 1100 | 11001100 11001100 11001100 11001100 | 10    | 11   | 00     | 10
-
-  // Set preamble bits
-  switch (preamble)
-  {
-    case spdif_preamble_b:
-      bmc.byte[7] = PREAMBLE_B;
-    break;
-
-    case spdif_preamble_m:
-      bmc.byte[7] = PREAMBLE_M;
-    break;
-
-    case spdif_preamble_w:
-      bmc.byte[7] = PREAMBLE_W;
-    break;
-  }
-  
-  // Encode data a nibble at a time
-  // Code is inversted if previous state was 1
-  // Aux Data
-  bmc.byte[6] = bmcLut0[(data >> 24) & 0xF]; // No need to check last state, preamble guaentees 0
-  // Sample
-  bmc.byte[5] = bmcLut0[(data >> 20) & 0xF] ^ -(int)(bmc.byte[6] & 1);
-  bmc.byte[4] = bmcLut0[(data >> 16) & 0xF] ^ -(int)(bmc.byte[5] & 1);
-  bmc.byte[3] = bmcLut0[(data >> 12) & 0xF] ^ -(int)(bmc.byte[4] & 1);
-  bmc.byte[2] = bmcLut0[(data >> 8) & 0xF] ^  -(int)(bmc.byte[3] & 1);
-  bmc.byte[1] = bmcLut0[(data >> 4) & 0xF] ^  -(int)(bmc.byte[2] & 1);
-  // Valid, User, Status, Parity
-  bmc.byte[0] = bmcLut0[(data >> 0) & 0xF] ^  -(int)(bmc.byte[1] & 1);
-
-
-  //LOGD(TAG, "BMC Word %016llX", bmc.raw);
-  //for (uint8_t i = 0; i < 8; i++)
-  //{
-  //  LOGI(TAG, "BMC Byte %d: %02X", i, bmc.byte[i]);
-  //}
-
-  return bmc.raw;
-   // Biphase Marck
-  // Each bit to be transmitted is 2 binary states
-  // 1st is always different from previous, 2nd is identical if 0, different if 1
-  // Assuming previous was 0
-  // 00 00 -> 1100 1100    0010 0000 -> 11 00 10 11    00 11 00 11
-  // 00 01 -> 1100 1101
-  // 00 10 -> 1100 1011
-  // 00 11 -> 1100 1010
-
-  // 01 00 -> 1101 0011
-  // 01 01 -> 1101 0010
-  // 01 10 -> 1101 0100
-  // 01 11 -> 1101 0101
-
-  // 10 00 -> 1011 0011
-  // 10 01 -> 1011 0010
-  // 10 10 -> 1011 0100
-  // 10 11 -> 1011 0101
-
-  // 11 00 -> 1010 1100
-  // 11 01 -> 1010 1101
-  // 11 10 -> 1010 1011
-  // 11 11 -> 1010 1010
-
+  // Free allocated memory
+  memoryReleasePhysical(&raspdif.memory);
 }
 
 /**
@@ -184,7 +71,7 @@ static void signalHandler(int32_t signal)
 {
   LOGW(TAG, "Received signal %s (%d).", sys_siglist[signal], signal);
 
-  pcmReset();
+  raspdifShutdown();
 
   // Termiante
   exit(EXIT_SUCCESS);
@@ -219,6 +106,44 @@ void registerSignalHandler()
 }
 
 /**
+  @brief  Generate the DMA controls blocks for the code buffers
+
+  @param  bControl raspdif_control_t structure in bus domain
+  @param  vControl raspdif_control_t strucutre in virtual domain
+  @retval none
+*/
+static void generateDmaControlBlocks(raspdif_control_t* bControl, raspdif_control_t* vControl)
+{
+  // Construct references to PCM peripheral at its bus addresses
+  bcm283x_pcm_t* bPcm = (bcm283x_pcm_t*) (BCM283X_BUS_PERIPHERAL_BASE + PCM_BASE_OFFSET);
+
+  // Zero-init all control blocks  
+  memset((void*)vControl->controlBlocks, 0, RASPDIF_BUFFER_COUNT * sizeof(dma_control_block_t));
+
+  for (size_t i = 0; i < RASPDIF_BUFFER_COUNT; i++)
+  {
+    // Configure DMA control block for this buffer
+    dma_control_block_t* control = &vControl->controlBlocks[i];
+
+    control->transferInformation.NO_WIDE_BURSTS = 1;
+    control->transferInformation.PERMAP = DMA_DREQ_PCM_TX;
+    control->transferInformation.DEST_DREQ = 1;
+    control->transferInformation.WAIT_RESP = 1;
+    control->transferInformation.SRC_INC = 1;
+
+    control->sourceAddress = &bControl->buffers[i];
+    control->destinationAddress = (void*) &bPcm->FIFO_A;
+    control->transferLength.XLENGTH = sizeof(raspdif_buffer_t);
+
+    // Point to next block, or first if at end
+    control->nextControlBlock = &bControl->controlBlocks[(i+1) % RASPDIF_BUFFER_COUNT];
+  }
+
+  // Check that blocks loop
+  assert(vControl->controlBlocks[RASPDIF_BUFFER_COUNT - 1].nextControlBlock == &bControl->controlBlocks[0]);
+}
+
+/**
   @brief  Main entry point
 
   @param  argc
@@ -235,51 +160,78 @@ int main (int argc, char* argv[])
 
   // Initialize BCM peripheral drivers
   bcm283x_init();
+  
+  // DMA channel 13 seems free...
+  raspdif.dmaChannel = dma_channel_13;
 
-  // Configure selected pins as AF0
+  // Allocate buffers and control blocks in physical memory
+  memory_physical_t memory = memoryAllocatePhysical(sizeof(raspdif_control_t));
+  if (memory.address == NULL)
+    LOGF(TAG, "Failed to allocate physical memory.");
+
+  // Save reference to physical memory handle
+  raspdif.memory = memory;
+
+  // Map the physical memory into our address space
+  uint8_t* busBase = (uint8_t*)memory.address;
+  uint8_t* physicalBase = busBase - bcm_host_get_sdram_address();
+  uint8_t* virtualBase = (uint8_t*)memoryMapPhysical((off_t)physicalBase, sizeof(raspdif_control_t));
+  if (virtualBase == NULL)
+  {
+    // Free physical memory
+    memoryReleasePhysical(&memory);
+
+    LOGF(TAG, "Failed to map physical memory.");
+  }
+
+  // Control blocks reference PCM and eachother via bus addresses
+  // Application accesses blocks via virtual addresses.
+  // Shortcuts to control structures in both domains
+  raspdif_control_t* bControl = (raspdif_control_t*) busBase;
+  raspdif_control_t* vControl = (raspdif_control_t*) virtualBase;
+
+  // Generate DMA control blocks for each SPDIF buffer
+  generateDmaControlBlocks(bControl, vControl);
+
+  // Configure DMA channel to load PCM from the buffers
+  dmaReset(raspdif.dmaChannel);
+  dmaSetControlBlock(raspdif.dmaChannel, bControl->controlBlocks);
+
+  // Configure GPIO 21 as PCM DOUT via AF0
   gpio_configuration_t gpioConfig;
   gpioConfig.eventDetect = gpio_event_detect_none;
   gpioConfig.function = gpio_function_af0;
   gpioConfig.pull = gpio_pull_no_change;
-  gpioConfigureMask(1 << 21 | 1 << 19 , &gpioConfig);
-  
-  // Configure selected pins as AF0
-  
-  gpioConfig.eventDetect = gpio_event_detect_none;
-  gpioConfig.function = gpio_function_output;
-  gpioConfig.pull = gpio_pull_no_change;
-  gpioConfigureMask(1 << 23 | 1 << 18 | 1 << 15 | 1 << 14, &gpioConfig);
-  
+  gpioConfigureMask(1 << 21 , &gpioConfig);
 
   // Target clock of 5.6448 MHz
   // 44.1 kHz * 64 bits * 2x (Manchester)
   // 500 MHz / 5.6448 = 88.57709750566893
+  double spdif_clock = RASPDIF_SAMPLE_RATE * 64.0 * 2.0;
+  LOGD(TAG, "Calculated SPDIF clock of %g Hz for sample rate of %g Hz.", spdif_clock, RASPDIF_SAMPLE_RATE);
 
-  double divisor = (500.0 / 5.6448);
-  //double divisor = 500.0 / 6.0;
+  double divisor = (500e6 / spdif_clock);
 
   double divi = 0;
   double divf = round(4096 * modf(divisor, &divi));
-  LOGI(TAG, "Floating DIVF: %f.", divf);
-  LOGI(TAG, "Calculated DIVI: %d, DIVF: %d.", (uint16_t) divi, (uint16_t)divf);
+  LOGD(TAG, "Calculated DIVI: %d, DIVF: %d.", (uint16_t) divi, (uint16_t)divf);
   
   clock_configuration_t clockConfig;
   clockConfig.source = clock_source_plld; // 500 MHz
-  clockConfig.mash = clock_mash_filter_1_stage;
+  clockConfig.mash = clock_mash_filter_1_stage; // MASH filters requried for non-integer division
   clockConfig.invert = false;
   clockConfig.divi = divi;
   clockConfig.divf = divf;
 
   clockConfigure(clock_peripheral_pcm, &clockConfig);
-  
   clockEnable(clock_peripheral_pcm, true);
 
+  // Reset PCM peripheral
   pcmReset();
-  LOGI(TAG, "After reset");
-  pcmDump();
 
+  // Comnfigure PCM peripheral
   pcm_configuration_t pcmConfig;
-  pcmConfig.frameSyncLength = 1; // Don't want FS pulse
+  pcmConfig.frameSyncLength = 1; // FS is unsed in SPDIF but useful for debugging
   pcmConfig.frameSyncInvert = false;
   pcmConfig.frameSyncMode = pcm_frame_sync_master;
   
@@ -289,24 +241,23 @@ int main (int argc, char* argv[])
   pcmConfig.txFrameMode = pcm_frame_unpacked;
   pcmConfig.rxFrameMode = pcm_frame_unpacked;
 
-  pcmConfig.frameLength = 32;
-
+  pcmConfig.frameLength = 32; // PCM peripheral will transmit 32 bit chunks
   pcmConfigure(&pcmConfig);
-  LOGI(TAG, "After config");
-  pcmDump();
 
-  pcmClearFifos();
-
+  // Configure the transmit channels
   pcm_channel_config_t txConfig[2] = {0};
   txConfig[0].width = 32;
   txConfig[0].position = 0;
   txConfig[0].enable = true;
-
   pcmConfigureTx(txConfig);
-  LOGI(TAG, "After tx config");
-  pcmDump();
+  
+  // Clear FIFOs just in case
+  pcmClearFifos();
 
-  spdif_pcm_channel_status_t channel_status_a = {0};
+  // Define the SPDIF channel status data
+  spdif_pcm_channel_status_t channel_status_a;
+  memset(&channel_status_a, 0, sizeof(spdif_pcm_channel_status_t));
+
   channel_status_a.aes3 = 0; // SPDIF
   channel_status_a.compressed = 0; // PCM
   channel_status_a.copy_permit = 1; // No copy protection
@@ -317,141 +268,95 @@ int main (int argc, char* argv[])
 
   channel_status_a.channel_number = 1;
 
+  // Duplicate channel status for B and update channel number
   spdif_pcm_channel_status_t channel_status_b = channel_status_a;
   channel_status_b.channel_number = 2;
-  
 
-  spdif_block_t block = {0};
+  // Allocate storage for a SPDIF block
+  spdif_block_t block;
+  memset(&block, 0, sizeof(block));
 
-  for (uint8_t i = 0; i < 192; i++)
+  // Copy channel status into each frame
+  for (uint8_t i = 0; i < SPDIF_FRAME_COUNT; i++)
   {
-  //  block.frames[i].a.channel_status = channel_status_a.raw[i / 8] >> (i % 8);
-  //  block.frames[i].b.channel_status = channel_status_b.raw[i / 8] >> (i % 8);
+    block.frames[i].a.channel_status = channel_status_a.raw[i / 8] >> (i % 8);
+    block.frames[i].b.channel_status = channel_status_b.raw[i / 8] >> (i % 8);
   }
 
-  
-  
-  gpioClear(15);
-  gpioClear(18);
-  gpioClear(14);
-  gpioClear(23);
-
-
+  // Re-open stdin as binary
   freopen(NULL, "rb", stdin);
 
   uint8_t frame_index = 0;
   uint32_t sample_count = 0;
-
-  int last_size = 0;
-  std::queue<uint16_t> sample_buffer;
-
-  int16_t samples[2] = {0};
-  LOGI(TAG, "Waiting for data...");
-  if (fread(samples, sizeof(int16_t), 2, stdin) > 0)
-  {
-    sample_buffer.push(samples[0]);
-    sample_buffer.push(samples[1]);
-    if (sample_buffer.size() != last_size)
-    {
-      LOGI(TAG, "Buffer Depth: %d", sample_buffer.size());
-      last_size = sample_buffer.size();
-    }
-  }
+  uint8_t buffer_index = 0;
   
-  fcntl(fileno(stdin), F_SETFL, O_NONBLOCK);
+  LOGI(TAG, "Waiting for data...");
 
-
-  pcmEnable();
-  while(!feof(stdin) || sample_buffer.size() > 0)
+  // Pre-load the buffers
+  int16_t samples[2] = {0};
+  while (fread(samples, sizeof(int16_t), 2, stdin) > 0 && buffer_index < RASPDIF_BUFFER_COUNT)
   {
-    if (sample_buffer.size() < 16)
-    {
-      gpioSet(15);
-      if (fread(samples, sizeof(int16_t), 2, stdin) > 0)
-      {
-        sample_buffer.push(samples[0]);
-        sample_buffer.push(samples[1]);
-        //if (sample_buffer.size() != last_size)
-        //{
-        //  LOGI(TAG, "Buffer Depth: %d", sample_buffer.size());
-        //  last_size = sample_buffer.size();
-        //}
-      }
-      gpioClear(15);
-    }
-    
+    raspdif_buffer_t* buffer = &vControl->buffers[buffer_index];
+    spdif_frame_t* frame = &block.frames[frame_index];
 
-    if (!pcmFifoNeedsWriting())
+    uint64_t codeA = spdifBuildSubframe(&frame->a, frame_index == 0 ? spdif_preamble_b : spdif_preamble_m, samples[0]);
+    buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].a_msb = codeA >> 32;
+    buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].a_lsb = codeA;
+    
+    uint64_t codeB = spdifBuildSubframe(&frame->b, spdif_preamble_w, samples[1]);
+    buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].b_msb = codeB >> 32;
+    buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].b_lsb = codeB;
+  
+    //LOGI(TAG, "Buffer %d Code %d - A: %016llX B: %016llX", buffer_index, sample_count, codeA, codeB);
+
+    frame_index = (frame_index + 1) % SPDIF_FRAME_COUNT;
+    sample_count++;
+    buffer_index = sample_count / RASPDIF_BUFFER_SIZE;
+  }
+
+  // Enable DMA and PCM to start transmit
+  dmaEnable(raspdif.dmaChannel, true);
+  pcmEnable();
+
+  // Read stdin until it's empty
+  buffer_index = 0;
+  sample_count = 0;
+  raspdif_buffer_t* buffer = &vControl->buffers[buffer_index];
+  while(!feof(stdin))
+  {
+    const dma_control_block_t* activeControl = dmaGetControlBlock(raspdif.dmaChannel);
+
+    if (activeControl == &bControl->controlBlocks[buffer_index])
     {
-      //LOGW(TAG, "FIFO Full");
-      gpioSet(14);
+      microsleep(50e3);
       continue;
     }
-    gpioClear(14);
 
-    while (sample_buffer.size() >= 2 && !pcmFifoFull())
+    if (fread(samples, sizeof(int16_t), 2, stdin) > 0)
     {
-      int16_t sampleA = sample_buffer.front();
-      sample_buffer.pop();
-
-      int16_t sampleB = sample_buffer.front();
-      sample_buffer.pop();
-      //LOGI(TAG, "Sample %d - L: %d R: %d", sample_count, sampleA, sampleB);
-      
-      
       spdif_frame_t* frame = &block.frames[frame_index];
 
-      frame->a.sample = sampleA << 4;
-      frame->a.validity = 0; // 0 Indicates OK. Dumb
-      frame->a.aux = 0;
-      frame->a.parity = 0; // Reset partiy before calculating
-      frame->a.parity = __builtin_popcount(frame->a.raw) % 2;
-
-      frame->b.sample = sampleB << 4;
-      frame->b.validity = 0;
-      frame->b.aux = 0;
-      frame->b.parity = 0;
-      frame->b.parity = __builtin_popcount(frame->b.raw) % 2;
-
-      //LOGI(TAG, "Frame %d - A: %08X B: %08X", frame_index, frame->a, frame->b);
-      gpioSet(18);
-      uint64_t codeA = encodeBiphaseMark(frame_index == 0 ? spdif_preamble_b : spdif_preamble_m, __rbit(frame->a.raw));
-      pcmWrite(codeA >> 32);
-      pcmWrite(codeA);
-            gpioClear(18);
+      uint64_t codeA = spdifBuildSubframe(&frame->a, frame_index == 0 ? spdif_preamble_b : spdif_preamble_m, samples[0]);
+      buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].a_msb = codeA >> 32;
+      buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].a_lsb = codeA;
       
-      gpioSet(23);
-      uint64_t codeB = encodeBiphaseMark(spdif_preamble_w, __rbit(frame->b.raw));
-      pcmWrite(codeB >> 32);
-      pcmWrite(codeB);
-      gpioClear(23);
+      uint64_t codeB = spdifBuildSubframe(&frame->b, spdif_preamble_w, samples[1]);
+      buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].b_msb = codeB >> 32;
+      buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].b_lsb = codeB;
 
-      frame_index = (frame_index + 1) % 192;
+      frame_index = (frame_index + 1) % SPDIF_FRAME_COUNT;
       sample_count++;
+
+      if (sample_count % RASPDIF_BUFFER_SIZE == 0)
+      {
+        buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
+        buffer = &vControl->buffers[buffer_index];
+      }
     }
-
-    
-      //if (sample_count > 192)
-//        break;
-
-
-
-
-    //if (sample_count == 8)
-    //{
-    //  LOGI(TAG, "ENABLING");
-    //  pcmEnable();
-    //}
-
-    //if (sample_count > 200)
-    //  break;
   }
 
-
-  bcm283x_delay_microseconds(100);
-  LOGI(TAG, "After enable");
-  pcmDump();
-
+  // Shutdown in a safe mamner
+  raspdifShutdown();
 
   return 0;
 }
