@@ -229,27 +229,36 @@ int main (int argc, char* argv[])
   // Reset PCM peripheral
   pcmReset();
 
-  // Comnfigure PCM peripheral
+  // Comnfigure PCM frame, clock and sync modes
   pcm_configuration_t pcmConfig;
-  pcmConfig.frameSyncLength = 1; // FS is unsed in SPDIF but useful for debugging
-  pcmConfig.frameSyncInvert = false;
-  pcmConfig.frameSyncMode = pcm_frame_sync_master;
+  memset(&pcmConfig, 0, sizeof(pcm_configuration_t));
+
+  pcmConfig.frameSync.length = 1; // FS is unsed in SPDIF but useful for debugging
+  pcmConfig.frameSync.invert = false;
+  pcmConfig.frameSync.mode = pcm_frame_sync_master;
   
-  pcmConfig.clockInvert = false;
-  pcmConfig.clockMode = pcm_clock_master;
+  pcmConfig.clock.invert = false;
+  pcmConfig.clock.mode = pcm_clock_master;
 
-  pcmConfig.txFrameMode = pcm_frame_unpacked;
-  pcmConfig.rxFrameMode = pcm_frame_unpacked;
+  pcmConfig.frame.txMode = pcm_frame_unpacked;
+  pcmConfig.frame.rxMode = pcm_frame_unpacked;
 
-  pcmConfig.frameLength = 32; // PCM peripheral will transmit 32 bit chunks
+  pcmConfig.frame.length = 32; // PCM peripheral will transmit 32 bit chunks
   pcmConfigure(&pcmConfig);
 
-  // Configure the transmit channels
-  pcm_channel_config_t txConfig[2] = {0};
-  txConfig[0].width = 32;
-  txConfig[0].position = 0;
-  txConfig[0].enable = true;
-  pcmConfigureTx(txConfig);
+  // Enable PCM DMA request and FIFO thresholds
+  pcm_dma_config_t dmaConfig;
+  memset(&dmaConfig, 0, sizeof(pcm_dma_config_t));
+
+  dmaConfig.txThreshold = 32;
+  dmaConfig.txPanic = 16;
+  pcmConfigureDma(true, &dmaConfig);
+
+  // Configure the transmit channel 1 for 32 bits
+  pcm_channel_config_t txConfig;
+  txConfig.width = 32;
+  txConfig.position = 0;
+  pcmConfigureTransmitChannels(&txConfig, NULL);
   
   // Clear FIFOs just in case
   pcmClearFifos();
@@ -316,7 +325,7 @@ int main (int argc, char* argv[])
 
   // Enable DMA and PCM to start transmit
   dmaEnable(raspdif.dmaChannel, true);
-  pcmEnable();
+  pcmEnable(true, false);
 
   // Read stdin until it's empty
   buffer_index = 0;

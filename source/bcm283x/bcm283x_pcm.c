@@ -114,32 +114,94 @@ void pcmClearFifos()
   pcmSync();
 }
 
-void pcmConfigureTx(const pcm_channel_config_t config[2])
+/**
+  @brief  Configure the PCM DMA settings
+
+  @param  enable Enable DMA requests from the PCM peripheral
+  @param  config PCM DMA configuration for TX & RX
+  @retval none
+*/
+void pcmConfigureDma(bool enable, const pcm_dma_config_t* config)
 {
   assert(pcm != NULL);
   assert(config != NULL);
 
+  // Ensure values are within bounds of FIFO
+  assert(config->txThreshold <= 64);
+  assert(config->rxThreshold <= 64);
+  assert(config->txPanic <= 64);
+  assert(config->rxPanic <= 64);
+
   WMB();
 
-  pcm->TXC_A.CH1EN = config[0].enable;
-  if (config[0].enable)
-  {
-    pcm->TXC_A.CH1POS = config[0].position;
-    pcm->TXC_A.CH1WID = (config[0].width - 8) & 0xF;
-    pcm->TXC_A.CH1WEX = config[0].width >= 24;
+  pcm->CS_A.DMAEN = enable;
+
+  pcm->DREQ_A.TX_PANIC = config->txPanic;
+  pcm->DREQ_A.TX = config->txThreshold;
+
+  pcm->DREQ_A.RX_PANIC = config->rxPanic;
+  pcm->DREQ_A.RX = config->rxThreshold;
+}
+
+/**
+  @brief  Configure PCM channels in the target register
+
+  @param  reg Channel configuration register
+  @param  channel1 Channel 1 configuration. NULL to disable.
+  @param  channel2 Channel 2 configuration. NULL to disable.
+  @retval void
+*/
+static void pcmConfigureChannels(volatile pcm_tx_rx_config_t* reg, const pcm_channel_config_t* channel1, const pcm_channel_config_t* channel2)
+{
+  WMB();
+
+  reg->CH1EN = (channel1 != NULL);
+  if (channel1 != NULL)
+  {  
+    reg->CH1POS = channel1->position;
+    reg->CH1WID = (channel1->width - 8) & 0xF;
+    reg->CH1WEX = channel1->width >= 24;
   }
 
-  pcm->TXC_A.CH2EN = config[1].enable;
-  if (config[1].enable)
+  reg->CH2EN = (channel2 != NULL);
+  if (channel2 != NULL)
   {
-    pcm->TXC_A.CH2POS = config[1].position;
-    pcm->TXC_A.CH2WID = (config[1].width - 8) & 0xF;
-    pcm->TXC_A.CH2WEX = config[1].width >= 24;
+    reg->CH2POS = channel2->position;
+    reg->CH2WID = (channel2->width - 8) & 0xF;
+    reg->CH2WEX = channel2->width >= 24;
   }
 }
 
 /**
-  @brief  Configure PCM peripheral
+  @brief  Configure PCM transmit channels
+
+  @param  channel1 Channel 1 configuration. NULL to disable.
+  @param  channel2 Channel 2 configuration. NULL to disable.
+  @retval void
+*/
+void pcmConfigureTransmitChannels(const pcm_channel_config_t* channel1, const pcm_channel_config_t* channel2)
+{
+  assert(pcm != NULL);
+
+  pcmConfigureChannels(&pcm->TXC_A, channel1, channel2);
+}
+
+/**
+  @brief  Configure PCM receive channels
+
+  @param  channel1 Channel 1 configuration. NULL to disable.
+  @param  channel2 Channel 2 configuration. NULL to disable.
+  @retval void
+*/
+void pcmConfigureReceiveChannels(const pcm_channel_config_t* channel1, const pcm_channel_config_t* channel2)
+{
+  assert(pcm != NULL);
+  
+  pcmConfigureChannels(&pcm->RXC_A, channel1, channel2);
+}
+
+/**
+  @brief  Configure the PCM mode register according to the provided configuration
 
   @param  config PCM configuration to set
   @retval void
@@ -149,20 +211,20 @@ static void pcmConfigureMode(const pcm_configuration_t* config)
   volatile pcm_mode_t* mode = &pcm->MODE_A;
 
   // Set frame length
-  mode->FLEN = config->frameLength - 1;
+  mode->FLEN = config->frame.length - 1;
 
   // Configure frame sync
-  mode->FSLEN = config->frameSyncLength;
-  mode->FSI = config->frameSyncInvert;
-  mode->FSM = (config->frameSyncMode == pcm_frame_sync_master) ? 0 : 1;
+  mode->FSLEN = config->frameSync.length;
+  mode->FSI = config->frameSync.invert;
+  mode->FSM = (config->frameSync.mode == pcm_frame_sync_master) ? 0 : 1;
 
   // Configure clock
-  mode->CLKI = config->clockInvert;
-  mode->CLKM = (config->clockMode == pcm_clock_master) ? 0 : 1;
+  mode->CLKI = config->clock.invert;
+  mode->CLKM = (config->clock.mode == pcm_clock_master) ? 0 : 1;
 
   // Configure frame format
-  mode->FTXP = (config->txFrameMode == pcm_frame_unpacked) ? 0 : 1;
-  mode->FTXP = (config->rxFrameMode == pcm_frame_unpacked) ? 0 : 1;
+  mode->FTXP = (config->frame.txMode == pcm_frame_unpacked) ? 0 : 1;
+  mode->FTXP = (config->frame.rxMode == pcm_frame_unpacked) ? 0 : 1;
 
   // Disable PDM mode
   mode->PDME = 0;
@@ -197,61 +259,33 @@ void pcmConfigure(const pcm_configuration_t* config)
 
   bcm283x_delay_microseconds(10);
 
+  // Configure the mode register
   pcmConfigureMode(config);
-  
-  pcm->CS_A.DMAEN = true;
-  pcm->DREQ_A.TX_PANIC = 16;
-  pcm->DREQ_A.TX = 32;
 
-  pcm->CS_A.TXTHR = 1;
+  // Configure FIFO thresholds for setting TXW and RXW bits
+  pcm->CS_A.TXTHR = config->fifo.txThreshold;
+  pcm->CS_A.RXTHR = config->fifo.rxThreshold;
 
   RMB();
 
   bcm283x_delay_microseconds(10);
 }
 
-bool pcmFifoNeedsWriting()
-{
-  assert(pcm != NULL);
+/**
+  @brief  Enable the PCM interface
 
-  bool room = pcm->CS_A.TXW;
-
-  RMB();
-
-  return room;
-}
-
-bool pcmFifoFull()
-{
-  assert(pcm != NULL);
-
-  bool full = !pcm->CS_A.TXD;
-
-  RMB();
-
-  return full;
-}
-
-void pcmWrite(uint32_t data)
-{
-  assert(pcm != NULL);
-
-  WMB();
-
-  while (pcm->CS_A.TXD == false)
-    bcm283x_delay_microseconds(1);
-
-  pcm->FIFO_A = data;
-
-  RMB();
-}
-
-void pcmEnable(void)
+  @param  transmit Enable the TX interface
+  @param  receive Enable the RX interface
+  @retval void
+*/
+void pcmEnable(bool transmit, bool receive)
 {
   WMB();
 
   pcm->CS_A.EN = 1;
-  pcm->CS_A.TXON = 1;
+  
+  pcm->CS_A.TXON = transmit;
+  pcm->CS_A.RXON = receive;
 }
 
 void pcmDump()

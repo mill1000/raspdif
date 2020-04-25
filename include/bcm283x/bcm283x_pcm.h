@@ -11,6 +11,14 @@
 
 #define PCM_BASE_OFFSET (0x00203000)
 
+typedef enum __attribute__((packed))
+{
+  PCM_THRESHOLD_0  = 0,
+  PCM_THRESHOLD_1  = 1,
+  PCM_THRESHOLD_2  = 2,
+  PCM_THRESHOLD_3  = 3,
+} PCM_THRESHOLD;
+
 typedef struct pcm_control_status_t
 {
   uint32_t EN    : 1;
@@ -54,7 +62,7 @@ typedef struct pcm_mode_t
   uint32_t _reserved : 3;
 } pcm_mode_t;
 
-typedef struct pcm_rx_config_t
+typedef struct pcm_tx_rx_config_t
 {
   uint32_t CH2WID : 4;
   uint32_t CH2POS : 10;
@@ -64,9 +72,10 @@ typedef struct pcm_rx_config_t
   uint32_t CH1POS : 10;
   uint32_t CH1EN  : 1;
   uint32_t CH1WEX : 1;
-} pcm_rx_config_t;
+} pcm_tx_rx_config_t;
 
-typedef pcm_rx_config_t pcm_tx_config_t;
+typedef pcm_tx_rx_config_t pcm_tx_config_t;
+typedef pcm_tx_rx_config_t pcm_rx_config_t;
 
 typedef struct pcm_dma_request_t
 {
@@ -152,22 +161,59 @@ typedef struct pcm_channel_config_t
 {
   uint8_t width;
   uint8_t position;
-  bool    enable;
 } pcm_channel_config_t;
+
+typedef struct pcm_dma_config_t
+{
+  uint8_t txThreshold;
+  uint8_t rxThreshold;
+  uint8_t txPanic;
+  uint8_t rxPanic;
+} pcm_dma_config_t;
+
+typedef enum pcm_fifo_threshold_t
+{
+  // TX thresholds
+  pcm_tx_threshold_empty     = PCM_THRESHOLD_0,
+  pcm_tx_threshold_one_third = PCM_THRESHOLD_1, // Unknown, assuming 1/4 or 1/3
+  pcm_tx_threshold_two_third = PCM_THRESHOLD_2, // Unknown assuming 3/4 or 2/3
+  pcm_tx_threshold_full      = PCM_THRESHOLD_3, // Technically full except for 1 sample
+
+  // RX thresholds
+  pcm_rx_threshold_empty     = PCM_THRESHOLD_0, // Technically empty except for 1 sample
+  pcm_rx_threshold_one_third = PCM_THRESHOLD_1, // Unknown, assuming 1/4 or 1/3
+  pcm_rx_threshold_two_third = PCM_THRESHOLD_2, // Unknown assuming 3/4 or 2/3
+  pcm_rx_threshold_full      = PCM_THRESHOLD_3,
+} pcm_fifo_threshold_t;
 
 typedef struct pcm_configuration_t
 {
   // Frame sync control
-  uint16_t              frameSyncLength;
-  bool                  frameSyncInvert;
-  pcm_frame_sync_mode_t frameSyncMode;
+  struct
+  {
+    uint16_t              length;
+    bool                  invert;
+    pcm_frame_sync_mode_t mode;
+  } frameSync;
   // Clock control
-  bool             clockInvert;
-  pcm_clock_mode_t clockMode;
+  struct
+  {
+    bool             invert;
+    pcm_clock_mode_t mode;  
+  } clock;
   // Frame format control
-  pcm_frame_mode_t txFrameMode;
-  pcm_frame_mode_t rxFrameMode;
-  uint16_t         frameLength;
+  struct
+  {
+    pcm_frame_mode_t txMode;
+    pcm_frame_mode_t rxMode;
+    uint16_t         length;
+  } frame;
+  // FIFO levels
+  struct
+  {
+    pcm_fifo_threshold_t txThreshold;
+    pcm_fifo_threshold_t rxThreshold;
+  } fifo;
 } pcm_configuration_t;
 
 void pcmInit(void* base);
@@ -175,9 +221,7 @@ void pcmReset(void);
 void pcmClearFifos(void);
 void pcmDump(void);
 void pcmConfigure(const pcm_configuration_t* config);
-void pcmConfigureTx(const pcm_channel_config_t config[2]);
-void pcmWrite(uint32_t data); 
-void pcmEnable(void);
-bool pcmFifoFull(void);
-bool pcmFifoNeedsWriting(void);
+void pcmConfigureTransmitChannels(const pcm_channel_config_t* channel1, const pcm_channel_config_t* channel2);
+void pcmConfigureDma(bool enable, const pcm_dma_config_t* config);
+void pcmEnable(bool transmit, bool receive);
 #endif
