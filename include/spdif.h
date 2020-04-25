@@ -5,10 +5,6 @@
 #include <stdbool.h>
 #include <assert.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define SPDIF_FRAME_COUNT 192
 
 typedef enum spdif_preamble_t
@@ -78,9 +74,5 @@ typedef struct spdif_block_t
 } spdif_block_t;
 
 uint64_t spdifBuildSubframe(spdif_subframe_t* subframe, spdif_preamble_t preamble, int16_t sample);
-
-#ifdef __cplusplus
-} 
-#endif
 
 #endif

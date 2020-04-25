@@ -5,10 +5,6 @@
 #include <stdbool.h>
 #include <assert.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // Enable GPIOs 32 - 54
 //#define BCM283X_EXTENDED_GPIO
 
@@ -27,9 +23,5 @@ void bcm283x_delay_microseconds(uint32_t microseconds);
 #include "bcm283x_mailbox.h"
 #include "bcm283x_pwm.h"
 #include "bcm283x_pcm.h"
-
-#ifdef __cplusplus
-} 
-#endif
 
 #endif

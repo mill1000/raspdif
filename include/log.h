@@ -1,10 +1,6 @@
 #ifndef __LOG__
 #define __LOG__
 
-#ifdef __cplusplus  
-extern "C" { 
-#endif 
-
 typedef enum
 {
   LOG_LEVEL_DEBUG = 0,
@@ -42,9 +38,5 @@ typedef enum
 
 void logPrint(LOG_LEVEL level, const char* format, ...);
 void logSetLevel(LOG_LEVEL level);
-
-#ifdef __cplusplus
-} 
-#endif
 
 #endif

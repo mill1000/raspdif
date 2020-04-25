@@ -16,9 +16,7 @@ INC_FLAGS := $(addprefix -I ,$(INC_DIRS))
 LDFLAGS := -L /opt/vc/lib -lbcm_host -lm -lvcos -lpthread -lstdc++
 CPPFLAGS ?= $(INC_FLAGS) -MMD 
 CFLAGS ?= -Wall -Wno-missing-braces
-CXXFALGS ?= -std=c++11 $(CFLAGS)
 CC = clang
-CXX = clang++
 
 all: $(BUILD_DIR)/$(TARGET_NAME)
 
@@ -28,10 +26,6 @@ $(BUILD_DIR)/$(TARGET_NAME): $(OBJS)
 $(BUILD_DIR)/%.c.o: %.c
 	@$(MKDIR_P) $(dir $@)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@	
-
-$(BUILD_DIR)/%.cpp.o: %.cpp
-	@$(MKDIR_P) $(dir $@)
-	$(CXX) $(CPPFLAGS) $(CXXFALGS) -c $< -o $@	
 
 .PHONY: clean
 clean:
