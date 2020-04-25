@@ -21,7 +21,6 @@ void bcm283x_delay_microseconds(uint32_t microseconds);
 #include "bcm283x_dma.h"
 #include "bcm283x_gpio.h"
 #include "bcm283x_mailbox.h"
-#include "bcm283x_pwm.h"
 #include "bcm283x_pcm.h"
 
 #endif

@@ -40,7 +40,6 @@ void bcm283x_init()
   }
 
   // Initalize modules at their base addresses
-  pwmInit(virtualBase + PWM_BASE_OFFSET);
   clockInit(virtualBase + CLOCK_BASE_OFFSET);
   gpioInit(virtualBase + GPIO_BASE_OFFSET);
   dmaInit(virtualBase + DMA_BASE_OFFSET);
