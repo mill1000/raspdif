@@ -57,27 +57,43 @@ void pcmReset()
 
   WMB();
 
+  // No true reset in block, set registers according to datasheet
+
   // Disable entire block
   pcm->CS_A.EN = 0;
 
-  // Disable TX and RX
-  pcm->CS_A.TXON = 0;
-  pcm->CS_A.RXON = 0;
+  bcm283x_delay_microseconds(10);
 
-  // Clear error flags
-  pcm->CS_A.TXERR = 1;
-  pcm->CS_A.RXERR = 1;
+  // Set entire regster to 0
+  pcm->CS_A = (pcm_control_status_t) {0};
 
   // Clear FIFO
   pcm->CS_A.TXCLR = 1;
   pcm->CS_A.RXCLR = 1;
 
-  // Disable DMA
-  pcm->CS_A.DMAEN = 0;
+  // Clear error flags
+  pcm->CS_A.TXERR = 1;
+  pcm->CS_A.RXERR = 1;
 
-  // Reset thresholds
-  pcm->CS_A.TXTHR = 0;
-  pcm->CS_A.RXTHR = 0;
+  // Reset mode register
+  pcm->MODE_A = (pcm_mode_t) {0};
+
+  // Reset channel registers
+  pcm->RXC_A = (pcm_rx_config_t) {0};
+  pcm->TXC_A = (pcm_tx_config_t) {0};
+
+  // Reset DMA register
+  pcm->DREQ_A.TX_PANIC = 0x10;
+  pcm->DREQ_A.RX_PANIC = 0x30;
+  pcm->DREQ_A.TX = 0x30;
+  pcm->DREQ_A.RX = 0x20;
+
+  // Reset interrupt registers
+  pcm->INTEN_A = (pcm_interrupt_enable_t) {0};
+  pcm->INTSTC_A = (pcm_interrupt_status_t) {0};
+
+  // Reset GRAY
+  pcm->GRAY = (pcm_gray_control_t) {0}; 
 }
 
 /**
@@ -183,6 +199,10 @@ void pcmConfigure(const pcm_configuration_t* config)
 
   pcmConfigureMode(config);
   
+  pcm->CS_A.DMAEN = true;
+  pcm->DREQ_A.TX_PANIC = 16;
+  pcm->DREQ_A.TX = 32;
+
   pcm->CS_A.TXTHR = 1;
 
   RMB();
