@@ -1,18 +1,19 @@
-#include <unistd.h>
-#include <float.h>
-#include <math.h>
-#include <signal.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <fcntl.h>
+#include <argp.h>
 #include <bcm_host.h>
+#include <fcntl.h>
+#include <math.h>
+#include <poll.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "log.h"
 #include "bcm283x.h"
+#include "git_version.h"
+#include "log.h"
 #include "memory.h"
-#include "utils.h"
 #include "spdif.h"
+#include "utils.h"
 
 #define TAG "MAIN"
 
@@ -48,6 +49,40 @@ static struct
     raspdif_control_t* virtual;
   } control;
 } raspdif;
+
+typedef struct raspdif_arguments_t 
+{
+  const char* file;
+} raspdif_arguments_t;
+
+const char* argp_program_version = "raspdif " GIT_VERSION;
+const char* argp_program_bug_address = "https://github.com/mill1000/raspdif/issues";
+static struct argp_option options[] =
+{
+  {"file", 'f', "FILE", 0 , "Read data from file instead of stdin."},
+  {0}
+};
+
+/**
+  @brief  Argument parser for argp
+
+  @param  key Short argument k
+  @param  arg String argument to k
+  @param  state argp state variable
+  @retval error_t
+*/
+static error_t parse_opt(int key, char* arg, struct argp_state* state)
+{
+  raspdif_arguments_t* arguments = state->input;
+
+  switch (key)
+  {
+    case 'f': arguments->file = arg; break;
+    default: return ARGP_ERR_UNKNOWN;
+  }
+  
+  return 0;
+}
 
 /**
   @brief  Shutdown the peripherals and free any allocated memory
@@ -306,6 +341,13 @@ void registerSignalHandler()
 */
 int main (int argc, char* argv[])
 {
+  raspdif_arguments_t arguments;
+  memset(&arguments, 0, sizeof(raspdif_arguments_t));
+
+  // Parse command line args
+  struct argp argp = {options, parse_opt, NULL, NULL};
+  argp_parse (&argp, argc, argv, 0, 0, &arguments);
+
   // Register signal handlers
   registerSignalHandler();
 
@@ -322,15 +364,19 @@ int main (int argc, char* argv[])
   // Populate each frame with channel status data
   spdifPopulateChannelStatus(&block);
   
-  // Re-open stdin as binary
-  freopen(NULL, "rb", stdin);
+  // Open the target file or stdin
+  FILE* file = NULL;
+  if (arguments.file)
+    file = fopen(arguments.file, "r+b"); // Open with writing to prevent EOF when FIFO is empty
+  else
+    file = freopen(NULL, "rb", stdin);
   
   LOGI(TAG, "Waiting for data...");
 
   // Pre-load the buffers
   uint8_t buffer_index = 0;
   int16_t samples[2] = {0};
-  while (fread(samples, sizeof(int16_t), 2, stdin) > 0 && buffer_index < RASPDIF_BUFFER_COUNT)
+  while (fread(samples, sizeof(int16_t), 2, file) > 0 && buffer_index < RASPDIF_BUFFER_COUNT)
   {
     raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
 
@@ -346,11 +392,14 @@ int main (int argc, char* argv[])
   dmaEnable(raspdif.dmaChannel, true);
   pcmEnable(true, false);
 
+  // Set stndin to nonblocking
+  fcntl(fileno(file), F_SETFL, O_NONBLOCK);
+
   // Reset to first buffer.
   buffer_index = 0;
   
-  // Read stdin until it's empty
-  while(!feof(stdin))
+  // Read file until EOS. Note, files openned in r+ will not EOF
+  while(!feof(file))
   {
     const dma_control_block_t* activeControl = dmaGetControlBlock(raspdif.dmaChannel);
 
@@ -361,15 +410,35 @@ int main (int argc, char* argv[])
       continue;
     }
 
-    if (fread(samples, sizeof(int16_t), 2, stdin) > 0)
+    // If read fails (or would block) pause the stream
+    if (fread(samples, sizeof(int16_t), 2, file) != 2 && !feof(file))
     {
-      raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-      bool full = raspdifBufferSamples(buffer, &block, samples[0], samples[1]);
+      LOGD(TAG, "Buffer underrun. Paused transmit.");
 
-      if (full)
-        buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
+      // Disable PCM transmit 
+      pcmEnable(false, false);
+
+      // Wait for file to be readable
+      struct pollfd poll_list;
+      poll_list.fd = fileno(file);
+      poll_list.events = POLLIN;
+      poll(&poll_list, 1, -1);
+
+      LOGD(TAG, "Data available. Resume transmit.");
+
+      // Re-enable TX and resume read loop
+      pcmEnable(true, false);
+
+      continue;
     }
+
+    raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
+    bool full = raspdifBufferSamples(buffer, &block, samples[0], samples[1]);
+
+    if (full)
+      buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
   }
+
   // TODO How do we wait until the end of the stream
 
   // Shutdown in a safe mamner

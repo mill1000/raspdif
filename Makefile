@@ -27,6 +27,9 @@ $(BUILD_DIR)/%.c.o: %.c
 	@$(MKDIR_P) $(dir $@)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@	
 
+git_version.h: .PHONY
+	echo "#define GIT_VERSION \"Commit: $(shell git describe --dirty --always --tags)\"" > $(INC_BASE)/$@
+
 .PHONY: clean
 clean:
 	$(RM) -r $(BUILD_DIR)
