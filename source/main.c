@@ -17,7 +17,7 @@
 
 #define TAG "MAIN"
 
-#define RASPDIF_SAMPLE_RATE  44.1e3 // 44.1 kHz
+#define RASPDIF_DEFAULT_SAMPLE_RATE  44.1e3 // 44.1 kHz
 #define RASPDIF_BUFFER_COUNT 3      // Number of entries in the cirular buffer
 #define RASPDIF_BUFFER_SIZE  2048   // Number of samples in each buffer entry. 128 (coded) bits per sample
 
@@ -53,6 +53,8 @@ static struct
 typedef struct raspdif_arguments_t 
 {
   const char* file;
+  bool    verbose;
+  double  sample_rate;
 } raspdif_arguments_t;
 
 const char* argp_program_version = "raspdif " GIT_VERSION;
@@ -60,6 +62,8 @@ const char* argp_program_bug_address = "https://github.com/mill1000/raspdif/issu
 static struct argp_option options[] =
 {
   {"file", 'f', "FILE", 0 , "Read data from file instead of stdin."},
+  {"sample_rate", 's', "SAMPLE_RATE", 0, "Set audio sample rate. Default: 44.1 kHz"},
+  {"verbose", 'v', 0, 0, "Enable debug messages."},
   {0}
 };
 
@@ -78,6 +82,8 @@ static error_t parse_opt(int key, char* arg, struct argp_state* state)
   switch (key)
   {
     case 'f': arguments->file = arg; break;
+    case 'v': arguments->verbose = true; break;
+    case 's': arguments->sample_rate = strtod(arg, NULL); break;
     default: return ARGP_ERR_UNKNOWN;
   }
   
@@ -344,6 +350,9 @@ int main (int argc, char* argv[])
   raspdif_arguments_t arguments;
   memset(&arguments, 0, sizeof(raspdif_arguments_t));
 
+  // Set default sample rate
+  arguments.sample_rate = RASPDIF_DEFAULT_SAMPLE_RATE;
+
   // Parse command line args
   struct argp argp = {options, parse_opt, NULL, NULL};
   argp_parse (&argp, argc, argv, 0, 0, &arguments);
@@ -351,11 +360,12 @@ int main (int argc, char* argv[])
   // Register signal handlers
   registerSignalHandler();
 
-  // Increase logging level to debug
-  logSetLevel(LOG_LEVEL_DEBUG);
+  // Increase logging level to debug if requested
+  if (arguments.verbose)
+    logSetLevel(LOG_LEVEL_DEBUG);
 
   // Initalize hardware and buffers
-  raspdifInit(dma_channel_13, RASPDIF_SAMPLE_RATE);
+  raspdifInit(dma_channel_13, arguments.sample_rate);
 
   // Allocate storage for a SPDIF block
   spdif_block_t block;
@@ -406,7 +416,7 @@ int main (int argc, char* argv[])
     if (activeControl == &raspdif.control.bus->controlBlocks[buffer_index])
     {
       // If DMA is using current buffer, delay by approx 1 buffer's duration
-      microsleep(1e6 * (RASPDIF_BUFFER_SIZE / RASPDIF_SAMPLE_RATE));
+      microsleep(1e6 * (RASPDIF_BUFFER_SIZE / arguments.sample_rate));
       continue;
     }
 
