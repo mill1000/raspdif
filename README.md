@@ -1,22 +1,62 @@
 # RASPDIF
 S/PDIF audio output on Raspberry Pi (3B) without a HAT.
 
-raspdf reads 16 bit PCM samples from stdin, encodes and transmit S/PDIF data on GPIO21 (Pin 40 on J8).
-
-## Prerequisits
-* clang - Tested against `clang version 3.8.1-24+rpi1`
+raspdif accepts 16 bit PCM samples from stdin, a file, or a FIFO (named pipe). Samples are encoded and transmited as S/PDIF data on GPIO21 (Pin 40 on J8).
 
 ## Building
+### Prerequisits
+* clang - Tested against `clang version 3.8.1-24+rpi1`
+* A sane build enviroment with standard libs.
+
 Just run make. No install target yet.
 ```
 make
 ```
 
 ## Usage
-Use ffmpeg to decode any audio file to the proper format and pipe to raspdif. Root is required to access the RPi peripherals via memmap.
+Check `raspdif --help` for additional arguments.
+
+There are 3 ways of utilizing raspdif.
+### Monitor a FIFO
+raspdif can monitor a FIFO and transmit samples written to the pipe. Output is paused if there is no data in the FIFO.
+
 ```
-ffmpeg  -i some_audio_file.flac -f s16le -acodec pcm_s16le - | sudo ./build/raspdif
+mkfifo /tmp/spdif_fifo
+sudo raspdif --file /tmp/spdif_fifo
 ```
+
+Now provide PCM data to to the FIFO in some matter.
+
+#### Examples
+Configure [gmrender-resurrect](https://github.com/hzeller/gmrender-resurrect) to output to the FIFO.
+```
+gmediarender --gstout-audiopipe 'audioresample ! audio/x-raw, rate=44100,format=S16LE ! filesink location=/tmp/spdif_fifo'
+```
+
+or construct a gstreamer pipeline manually that outputs to the FIFO.
+```
+gst-launch-1.0 uridecodebin uri="file://some_audio_file.flac" ! audioconvert ! audioresample ! audio/x-raw, rate=441
+00,format=S16LE ! filesink location=/tmp/spdif_fifo
+```
+
+FFMPEG can also write directly to the FIFO.
+```
+ffmpeg -i some_audio_file.flac -f s16le -acodec pcm_s16le /tmp/spdif_fifo
+```
+
+### Play a file directly
+raspif can play a file directly. Files must be raw PCM in S16_LE format.
+```
+sudo raspdif --file /tmp/spdif_fifo
+```
+
+### Pipe data via stdin
+```
+ffmpeg -i some_audio_file.flac -f s16le -acodec pcm_s16le - | sudo raspdif
+```
+
+### Set the sample rate
+raspdif defaults to a sample rate of 44.1 kHz. Alternate sample rates can be specified on the command line with the `--sample_rate` option. Rates up to 192 kHz have been tested successfully. 
 
 ## Signal Levels
 S/PDIF specification calls for .5 V Vpp when 75 Ohm is connected across the output. To achieve these level from the RPi's nominal 3.3 V signaling a simple resisitve divider can be build with a 390 Ohm resister is series with the output.
