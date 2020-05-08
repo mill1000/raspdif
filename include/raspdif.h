@@ -5,9 +5,16 @@
 #include <stdbool.h>
 #include <assert.h>
 
-#define RASPDIF_DEFAULT_SAMPLE_RATE  44.1e3 // 44.1 kHz
+#define RASPDIF_DEFAULT_SAMPLE_RATE 44.1e3 // 44.1 kHz
+#define RASPDIF_DEFAULT_FORMAT raspdif_format_s16le
 #define RASPDIF_BUFFER_COUNT 3      // Number of entries in the cirular buffer
 #define RASPDIF_BUFFER_SIZE  2048   // Number of samples in each buffer entry. 128 (coded) bits per sample
+
+typedef enum raspdif_format_t
+{
+  raspdif_format_s16le, // Signed 16 bit little endian
+  raspdif_format_s24le, // Signed 24 bit little endian
+} raspdif_format_t;
 
 typedef struct raspdif_sample_t
 {

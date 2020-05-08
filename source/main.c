@@ -34,6 +34,7 @@ typedef struct raspdif_arguments_t
   const char* file;
   bool    verbose;
   double  sample_rate;
+  raspdif_format_t format;
 } raspdif_arguments_t;
 
 const char* argp_program_version = "raspdif " GIT_VERSION;
@@ -42,6 +43,7 @@ static struct argp_option options[] =
 {
   {"file", 'f', "FILE", 0 , "Read data from file instead of stdin."},
   {"sample_rate", 's', "SAMPLE_RATE", 0, "Set audio sample rate. Default: 44.1 kHz"},
+  {"format", 'd', "FORMAT", 0, "Set audio sample format to s16le or s24le. Default: s16le"},
   {"verbose", 'v', 0, 0, "Enable debug messages."},
   {0}
 };
@@ -60,9 +62,21 @@ static error_t parse_opt(int key, char* arg, struct argp_state* state)
 
   switch (key)
   {
+    case 'd': 
+      if (strcmp("s16le", arg) == 0)
+        arguments->format = raspdif_format_s16le;
+      else if (strcmp("s24le", arg) == 0)
+        arguments->format = raspdif_format_s24le;
+      else
+      {
+        LOGF(TAG, "Unrecognized format '%s'", arg);
+        return EINVAL;
+      }
+      
+      break;
     case 'f': arguments->file = arg; break;
-    case 'v': arguments->verbose = true; break;
     case 's': arguments->sample_rate = strtod(arg, NULL); break;
+    case 'v': arguments->verbose = true; break;
     default: return ARGP_ERR_UNKNOWN;
   }
   
@@ -248,22 +262,25 @@ static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
 
   @param  buffer Buffer to store encoded samples to
   @param  block SPDIF block so proper frames can be encoded
-  @param  sampleA Audio sampel for first channel
+  @param  format Format of samples
+  @param  sampleA Audio sample for first channel
   @param  sampleB Audio sample for second channel
   @retval bool - Provided buffer is now full
 */
-static bool raspdifBufferSamples(raspdif_buffer_t* buffer, spdif_block_t* block, int16_t sampleA, int16_t sampleB)
+static bool raspdifBufferSamples(raspdif_buffer_t* buffer, spdif_block_t* block, raspdif_format_t format, int32_t sampleA, int32_t sampleB)
 {
   static uint8_t frame_index = 0; // Position withing SPDIF block
   static uint32_t sample_count = 0; // Number of samples received. At 44.1 kHz will overflow at 13 hours
 
+  spdif_sample_depth_t bitDepth = (format == raspdif_format_s24le) ? spdif_sample_depth_24 : spdif_sample_depth_16;
+
   spdif_frame_t* frame = &block->frames[frame_index];
 
-  uint64_t codeA = spdifBuildSubframe(&frame->a, frame_index == 0 ? spdif_preamble_b : spdif_preamble_m, sampleA);
+  uint64_t codeA = spdifBuildSubframe(&frame->a, frame_index == 0 ? spdif_preamble_b : spdif_preamble_m, bitDepth, sampleA);
   buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].a.msb = codeA >> 32;
   buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].a.lsb = codeA;
   
-  uint64_t codeB = spdifBuildSubframe(&frame->b, spdif_preamble_w, sampleB);
+  uint64_t codeB = spdifBuildSubframe(&frame->b, spdif_preamble_w, bitDepth, sampleB);
   buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].b.msb = codeB >> 32;
   buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].b.lsb = codeB;
 
@@ -271,6 +288,26 @@ static bool raspdifBufferSamples(raspdif_buffer_t* buffer, spdif_block_t* block,
   sample_count++;
 
   return sample_count % RASPDIF_BUFFER_SIZE == 0;
+}
+
+/**
+  @brief  Parse and sign extend the sample of the specified format
+
+  @param  format Sample format to parse
+  @param  buffer Buffer containing raw sample bytes
+  @retval int32_t - Sign extended sample
+*/
+static int32_t raspdifParseSample( raspdif_format_t format, uint8_t* buffer)
+{
+  if (format == raspdif_format_s16le)
+  {
+    return (int16_t) (buffer[1] << 8 | buffer[0]);
+  }
+  else
+  {
+    struct { signed int x : 24; } s;
+    return s.x = buffer[2] << 16 | buffer[1] << 8 | buffer[0];
+  }
 }
 
 /**
@@ -331,6 +368,7 @@ int main (int argc, char* argv[])
 
   // Set default sample rate
   arguments.sample_rate = RASPDIF_DEFAULT_SAMPLE_RATE;
+  arguments.format = RASPDIF_DEFAULT_FORMAT;
 
   // Parse command line args
   struct argp argp = {options, parse_opt, NULL, NULL};
@@ -362,20 +400,27 @@ int main (int argc, char* argv[])
   
   LOGI(TAG, "Estimated latency: %g seconds.", (RASPDIF_BUFFER_COUNT - 1) * (RASPDIF_BUFFER_SIZE / arguments.sample_rate));
   LOGI(TAG, "Waiting for data...");
+  
+  // Determine sample size and declare sample buffer
+  uint8_t sampleSize = (arguments.format == raspdif_format_s24le) ? 3 : sizeof(int16_t);
 
   // Pre-load the buffers
   uint8_t buffer_index = 0;
-  int16_t samples[2] = {0};
-  while (fread(samples, sizeof(int16_t), 2, file) > 0 && buffer_index < RASPDIF_BUFFER_COUNT)
+  uint8_t samples[2 * sizeof(int32_t)] = {0};
+  while (fread(samples, sampleSize, 2, file) > 0 && buffer_index < RASPDIF_BUFFER_COUNT)
   {
     raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
 
-    bool full = raspdifBufferSamples(buffer, &block, samples[0], samples[1]);
-    
-    if (full)
-      buffer_index++;
-  }
+    // Parse sample buffer in proper format
+    int32_t sampleA = raspdifParseSample(arguments.format, &samples[0]);
+    int32_t sampleB = raspdifParseSample(arguments.format, &samples[sampleSize]);
 
+    bool full = raspdifBufferSamples(buffer, &block, arguments.format, sampleA, sampleB);
+    
+      if (full)
+        buffer_index++;
+  }
+  
   LOGI(TAG, "Transmitting...");
 
   // Enable DMA and PCM to start transmit
@@ -401,7 +446,7 @@ int main (int argc, char* argv[])
     }
 
     // If read fails (or would block) pause the stream
-    if (fread(samples, sizeof(int16_t), 2, file) != 2 && !feof(file))
+    if (fread(samples, sampleSize, 2, file) != 2 && !feof(file))
     {
       LOGD(TAG, "Buffer underrun. Paused transmit.");
 
@@ -423,7 +468,12 @@ int main (int argc, char* argv[])
     }
 
     raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-    bool full = raspdifBufferSamples(buffer, &block, samples[0], samples[1]);
+
+    // Parse sample buffer in proper format
+    int32_t sampleA = raspdifParseSample(arguments.format, &samples[0]);
+    int32_t sampleB = raspdifParseSample(arguments.format, &samples[sampleSize]);
+
+    bool full = raspdifBufferSamples(buffer, &block, arguments.format, sampleA, sampleB);
 
     if (full)
       buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;

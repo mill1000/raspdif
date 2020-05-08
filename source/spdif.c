@@ -102,14 +102,31 @@ static uint64_t spdifEncodeBiphaseMark(spdif_preamble_t preamble, uint32_t data)
 
   @param  subframe SPDIF subframe buffer with channel status data
   @param  preamble Preamble type for this subframe
+  @param  depth Bit depth of sample
   @param  sample PCM audio sample
   @retval uint64_t - BMC encoded subframe
 */
-uint64_t spdifBuildSubframe(spdif_subframe_t* subframe, spdif_preamble_t preamble, int16_t sample)
+uint64_t spdifBuildSubframe(spdif_subframe_t* subframe, spdif_preamble_t preamble, spdif_sample_depth_t depth, int32_t sample)
 {
-  subframe->sample = sample << 4; // Scale to 20 bits
+  switch (depth)
+  {
+    case spdif_sample_depth_16:
+      subframe->sample = sample << 4; // Scale to 20 bits
+      subframe->aux = 0;
+      break;
+
+    case spdif_sample_depth_20:
+      subframe->sample = sample;
+      subframe->aux = 0;
+      break;
+
+  case spdif_sample_depth_24:
+      subframe->sample = sample >> 4; // MSB store in sample
+      subframe->aux = sample & 0xF; // LSB is aux data
+      break;
+  }
+  
   subframe->validity = 0; // 0 Indicates OK. Dumb
-  subframe->aux = 0;
   subframe->parity = 0; // Reset partiy before calculating
   subframe->parity = __builtin_popcount(subframe->raw) % 2;
 

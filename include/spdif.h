@@ -7,6 +7,13 @@
 
 #define SPDIF_FRAME_COUNT 192
 
+typedef enum spdif_sample_depth_t
+{
+  spdif_sample_depth_16,
+  spdif_sample_depth_20,
+  spdif_sample_depth_24, // May or may not be supported
+} spdif_sample_depth_t;
+
 typedef enum spdif_preamble_t
 {
   spdif_preamble_m, // 1st sub-frame, left channel
@@ -73,7 +80,7 @@ typedef struct spdif_block_t
   spdif_frame_t frames[SPDIF_FRAME_COUNT];
 } spdif_block_t;
 
-uint64_t spdifBuildSubframe(spdif_subframe_t* subframe, spdif_preamble_t preamble, int16_t sample);
+uint64_t spdifBuildSubframe(spdif_subframe_t* subframe, spdif_preamble_t preamble, spdif_sample_depth_t depth, int32_t sample);
 void spdifPopulateChannelStatus(spdif_block_t* block);
 
 #endif
