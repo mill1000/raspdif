@@ -12,32 +12,11 @@
 #include "git_version.h"
 #include "log.h"
 #include "memory.h"
+#include "raspdif.h"
 #include "spdif.h"
 #include "utils.h"
 
 #define TAG "MAIN"
-
-#define RASPDIF_DEFAULT_SAMPLE_RATE  44.1e3 // 44.1 kHz
-#define RASPDIF_BUFFER_COUNT 3      // Number of entries in the cirular buffer
-#define RASPDIF_BUFFER_SIZE  2048   // Number of samples in each buffer entry. 128 (coded) bits per sample
-
-typedef struct raspdif_buffer_t
-{
-  struct
-  {
-    uint32_t a_msb;
-    uint32_t a_lsb;
-    uint32_t b_msb;
-    uint32_t b_lsb;
-  } sample[RASPDIF_BUFFER_SIZE];
-} raspdif_buffer_t;
-static_assert(sizeof(raspdif_buffer_t) <=  UINT16_MAX, "SPDIF buffer must be representable in 16 bits.");
-
-typedef struct raspdif_control_t
-{
-  dma_control_block_t controlBlocks[RASPDIF_BUFFER_COUNT];
-  raspdif_buffer_t    buffers[RASPDIF_BUFFER_COUNT];
-} raspdif_control_t;
 
 static struct
 {
@@ -281,12 +260,12 @@ static bool raspdifBufferSamples(raspdif_buffer_t* buffer, spdif_block_t* block,
   spdif_frame_t* frame = &block->frames[frame_index];
 
   uint64_t codeA = spdifBuildSubframe(&frame->a, frame_index == 0 ? spdif_preamble_b : spdif_preamble_m, sampleA);
-  buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].a_msb = codeA >> 32;
-  buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].a_lsb = codeA;
+  buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].a.msb = codeA >> 32;
+  buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].a.lsb = codeA;
   
   uint64_t codeB = spdifBuildSubframe(&frame->b, spdif_preamble_w, sampleB);
-  buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].b_msb = codeB >> 32;
-  buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].b_lsb = codeB;
+  buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].b.msb = codeB >> 32;
+  buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].b.lsb = codeB;
 
   frame_index = (frame_index + 1) % SPDIF_FRAME_COUNT;
   sample_count++;
