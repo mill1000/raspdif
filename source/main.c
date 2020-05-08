@@ -41,9 +41,9 @@ const char* argp_program_version = "raspdif " GIT_VERSION;
 const char* argp_program_bug_address = "https://github.com/mill1000/raspdif/issues";
 static struct argp_option options[] =
 {
-  {"file", 'f', "FILE", 0 , "Read data from file instead of stdin."},
-  {"sample_rate", 's', "SAMPLE_RATE", 0, "Set audio sample rate. Default: 44.1 kHz"},
-  {"format", 'd', "FORMAT", 0, "Set audio sample format to s16le or s24le. Default: s16le"},
+  {"input", 'i', "INPUT_FILE", 0 , "Read data from file instead of stdin."},
+  {"rate", 'r', "RATE", 0, "Set audio sample rate. Default: 44.1 kHz"},
+  {"format", 'f', "FORMAT", 0, "Set audio sample format to s16le or s24le. Default: s16le"},
   {"verbose", 'v', 0, 0, "Enable debug messages."},
   {0}
 };
@@ -62,7 +62,7 @@ static error_t parse_opt(int key, char* arg, struct argp_state* state)
 
   switch (key)
   {
-    case 'd': 
+    case 'f': 
       if (strcmp("s16le", arg) == 0)
         arguments->format = raspdif_format_s16le;
       else if (strcmp("s24le", arg) == 0)
@@ -74,8 +74,8 @@ static error_t parse_opt(int key, char* arg, struct argp_state* state)
       }
       
       break;
-    case 'f': arguments->file = arg; break;
-    case 's': arguments->sample_rate = strtod(arg, NULL); break;
+    case 'i': arguments->file = arg; break;
+    case 'r': arguments->sample_rate = strtod(arg, NULL); break;
     case 'v': arguments->verbose = true; break;
     default: return ARGP_ERR_UNKNOWN;
   }
