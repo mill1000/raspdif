@@ -8,9 +8,13 @@ raspdif accepts 16 or 24 bit PCM samples from stdin, a file, or a FIFO (named pi
 * clang - Tested against `clang version 3.8.1-24+rpi1`
 * A sane build enviroment with standard libs.
 
-Just run make. No install target yet.
+Just run make. No configuration right now.
 ```
 make
+```
+Install to default location (`/usr/local/bin`)
+```
+sudo make install
 ```
 
 ## Usage
