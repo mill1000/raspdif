@@ -5,7 +5,7 @@
 
 #define TAG "SPDIF"
 
-// Inverted if preceding state was 1
+// Inverted if preceding bit state was 1
 // Which shouldn't happen due to even parity
 #define SPDIF_PREAMBLE_M 0xE2 // Sub-frame 1
 #define SPDIF_PREAMBLE_W 0xE4 // Sub-frame 2
@@ -84,9 +84,9 @@ static uint64_t spdifEncodeBiphaseMark(spdif_preamble_t preamble, uint32_t data)
   // Encode data a nibble at a time
   // Code is inversted if previous state was 1
   // Aux Data
-  bmc.byte[6] = bmcLut0[(data >> 24) & 0xF]; // No need to check last state, preamble guaentees 0
+  bmc.byte[6] = bmcLut0[(data >> 24) & 0xF]; // No need to check last state, preamble guarantees 0
   // Sample
-  bmc.byte[5] = bmcLut0[(data >> 20) & 0xF] ^ -(int)(bmc.byte[6] & 1); // Branchless inversion yo
+  bmc.byte[5] = bmcLut0[(data >> 20) & 0xF] ^ -(int)(bmc.byte[6] & 1); // Branchless inversion yo!
   bmc.byte[4] = bmcLut0[(data >> 16) & 0xF] ^ -(int)(bmc.byte[5] & 1);
   bmc.byte[3] = bmcLut0[(data >> 12) & 0xF] ^ -(int)(bmc.byte[4] & 1);
   bmc.byte[2] = bmcLut0[(data >> 8) & 0xF] ^  -(int)(bmc.byte[3] & 1);
@@ -127,7 +127,7 @@ uint64_t spdifBuildSubframe(spdif_subframe_t* subframe, spdif_preamble_t preambl
   }
   
   subframe->validity = 0; // 0 Indicates OK. Dumb
-  subframe->parity = 0; // Reset partiy before calculating
+  subframe->parity = 0; // Reset parity before calculating
   subframe->parity = __builtin_popcount(subframe->raw) % 2;
 
   // Encode to biphase mark. PCM peripheral transmits MSBit first so bitflip data
@@ -142,7 +142,7 @@ uint64_t spdifBuildSubframe(spdif_subframe_t* subframe, spdif_preamble_t preambl
 */
 void spdifPopulateChannelStatus(spdif_block_t* block)
 {
- // Define the SPDIF channel status data
+  // Define the SPDIF channel status data
   spdif_pcm_channel_status_t channel_status_a;
   memset(&channel_status_a, 0, sizeof(spdif_pcm_channel_status_t));
 
@@ -160,7 +160,7 @@ void spdifPopulateChannelStatus(spdif_block_t* block)
   channel_status_a.sample_frequency = 1; // Not indicated
   channel_status_a.clock_accuracy = 0; // Level 2 TODO What is L2?
 
-  channel_status_a.word_length = 0; // Max sample length is 20 bits
+  channel_status_a.word_length = 0; // Max sample length is 20 bits. TODO If we do S24LE this should probably change?
   channel_status_a.sample_word_length = 0; // Not indicated
   channel_status_a.original_sampling_frequency = 0; // Not indicated
 

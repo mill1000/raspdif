@@ -204,7 +204,7 @@ static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
   
   clock_configuration_t clockConfig;
   clockConfig.source = clock_source_plld; // 500 MHz
-  clockConfig.mash = clock_mash_filter_1_stage; // MASH filters requried for non-integer division
+  clockConfig.mash = clock_mash_filter_1_stage; // MASH filters required for non-integer division
   clockConfig.invert = false;
   clockConfig.divi = divi;
   clockConfig.divf = divf;
@@ -215,7 +215,7 @@ static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
   // Reset PCM peripheral
   pcmReset();
 
-  // Comnfigure PCM frame, clock and sync modes
+  // Configure PCM frame, clock and sync modes
   pcm_configuration_t pcmConfig;
   memset(&pcmConfig, 0, sizeof(pcm_configuration_t));
 
@@ -269,7 +269,7 @@ static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
 */
 static bool raspdifBufferSamples(raspdif_buffer_t* buffer, spdif_block_t* block, raspdif_format_t format, int32_t sampleA, int32_t sampleB)
 {
-  static uint8_t frame_index = 0; // Position withing SPDIF block
+  static uint8_t frame_index = 0; // Position within SPDIF block
   static uint32_t sample_count = 0; // Number of samples received. At 44.1 kHz will overflow at 13 hours
 
   spdif_sample_depth_t bitDepth = (format == raspdif_format_s24le) ? spdif_sample_depth_24 : spdif_sample_depth_16;
@@ -361,7 +361,7 @@ void registerSignalHandler()
   @param  argv
   @retval none
 */
-int main (int argc, char* argv[])
+int main(int argc, char* argv[])
 {
   raspdif_arguments_t arguments;
   memset(&arguments, 0, sizeof(raspdif_arguments_t));
@@ -401,7 +401,7 @@ int main (int argc, char* argv[])
   LOGI(TAG, "Estimated latency: %g seconds.", (RASPDIF_BUFFER_COUNT - 1) * (RASPDIF_BUFFER_SIZE / arguments.sample_rate));
   LOGI(TAG, "Waiting for data...");
   
-  // Determine sample size and declare sample buffer
+  // Determine sample size in bytes
   uint8_t sampleSize = (arguments.format == raspdif_format_s24le) ? 3 : sizeof(int16_t);
 
   // Pre-load the buffers
@@ -433,7 +433,7 @@ int main (int argc, char* argv[])
   // Reset to first buffer.
   buffer_index = 0;
   
-  // Read file until EOS. Note, files openned in r+ will not EOF
+  // Read file until EOS. Note: files opened in r+ will not emit EOF
   while(!feof(file))
   {
     const dma_control_block_t* activeControl = dmaGetControlBlock(raspdif.dmaChannel);
