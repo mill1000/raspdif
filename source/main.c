@@ -104,7 +104,7 @@ void raspdifShutdown()
   @brief  Generate the DMA controls blocks for the code buffers
 
   @param  bControl raspdif_control_t structure in bus domain
-  @param  vControl raspdif_control_t strucutre in virtual domain
+  @param  vControl raspdif_control_t structure in virtual domain
   @retval none
 */
 static void raspdifGenerateDmaControlBlocks(raspdif_control_t* bControl, raspdif_control_t* vControl)
@@ -139,7 +139,7 @@ static void raspdifGenerateDmaControlBlocks(raspdif_control_t* bControl, raspdif
 }
 
 /**
-  @brief  Initalize hardware for SPDIF generation. Include DMA, Clock, PCM and GPIO config
+  @brief  Initialize hardware for SPDIF generation. Include DMA, Clock, PCM and GPIO config
 
   @param  dmaChannel DMA channel to use for transfering buffers to PCM
   @param  sampleRate_Hz Audio sample rate in Hertz for clock configuration
@@ -219,7 +219,7 @@ static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
   pcm_configuration_t pcmConfig;
   memset(&pcmConfig, 0, sizeof(pcm_configuration_t));
 
-  pcmConfig.frameSync.length = 1; // FS is unsed in SPDIF but useful for debugging
+  pcmConfig.frameSync.length = 1; // FS is unused in SPDIF but useful for debugging
   pcmConfig.frameSync.invert = false;
   pcmConfig.frameSync.mode = pcm_frame_sync_master;
   
@@ -322,12 +322,12 @@ static void signalHandler(int32_t signal)
 
   raspdifShutdown();
 
-  // Termiante
+  // Terminate
   exit(EXIT_SUCCESS);
 }
 
 /**
-  @brief  Reigster a handler for all POSIX signals 
+  @brief  Register a handler for all POSIX signals 
           that would cause termination
 
   @param  none
@@ -381,7 +381,7 @@ int main(int argc, char* argv[])
   if (arguments.verbose)
     logSetLevel(LOG_LEVEL_DEBUG);
 
-  // Initalize hardware and buffers
+  // Initialize hardware and buffers
   raspdifInit(dma_channel_13, arguments.sample_rate);
 
   // Allocate storage for a SPDIF block
@@ -481,7 +481,7 @@ int main(int argc, char* argv[])
 
   // TODO How do we wait until the end of the stream
 
-  // Shutdown in a safe mamner
+  // Shutdown in a safe manner
   raspdifShutdown();
 
   return 0;
