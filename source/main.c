@@ -311,6 +311,43 @@ static int32_t raspdifParseSample(raspdif_format_t format, uint8_t* buffer)
 }
 
 /**
+  @brief  Fill all buffers with a sample value of zero
+
+  @param  buffer_index Current buffer index to start filling from
+  @param  block SPDIF block so proper frames can be encoded
+  @param  format Format of samples
+  @param  sample_rate Sample rate to estimate latency when delaying on DMA
+  @retval none
+*/
+static void raspdifZeroFillBuffers(uint8_t buffer_index, spdif_block_t* block, raspdif_format_t format, double sample_rate)
+{
+  // Zero fill remainder of current buffer
+  raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
+  while (!raspdifBufferSamples(buffer, block, format, 0, 0));
+
+  buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
+
+  // Zero fill all the buffers, while waiting on DMA if necessary
+  uint8_t fill_count = 0;
+  while (fill_count < RASPDIF_BUFFER_COUNT)
+  {
+    if (dmaGetControlBlock(raspdif.dmaChannel) == &raspdif.control.bus->controlBlocks[buffer_index])
+    {
+      // If DMA is using current buffer, delay by approx 1 buffer's duration
+      microsleep(1e6 * (RASPDIF_BUFFER_SIZE / sample_rate));
+      continue;
+    }
+
+    raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
+    while (!raspdifBufferSamples(buffer, block, format, 0, 0));
+
+    buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
+
+    fill_count++;
+  }
+}
+
+/**
   @brief  Callback function for POSIX signals
 
   @param  signal Received POSIX signal
@@ -445,10 +482,10 @@ int main(int argc, char* argv[])
     // If read fails (or would block) pause the stream
     if (fread(samples, sampleSize, 2, file) != 2 && !feof(file))
     {
-      LOGD(TAG, "Buffer underrun. Paused transmit.");
-
-      // Disable PCM transmit 
-      pcmEnable(false, false);
+      LOGD(TAG, "Buffer underrun.");
+      
+      // Zero fill the sample buffers for silence
+      raspdifZeroFillBuffers(buffer_index, &block, arguments.format, arguments.sample_rate);
 
       // Wait for file to be readable
       struct pollfd poll_list;
@@ -456,11 +493,8 @@ int main(int argc, char* argv[])
       poll_list.events = POLLIN;
       poll(&poll_list, 1, -1);
 
-      LOGD(TAG, "Data available. Resume transmit.");
-
-      // Re-enable TX and resume read loop
-      pcmEnable(true, false);
-
+      // Resume read loop
+      LOGD(TAG, "Data available.");
       continue;
     }
 
