@@ -297,7 +297,7 @@ static bool raspdifBufferSamples(raspdif_buffer_t* buffer, spdif_block_t* block,
   @param  buffer Buffer containing raw sample bytes
   @retval int32_t - Sign extended sample
 */
-static int32_t raspdifParseSample( raspdif_format_t format, uint8_t* buffer)
+static int32_t raspdifParseSample(raspdif_format_t format, uint8_t* buffer)
 {
   if (format == raspdif_format_s16le)
   {
@@ -409,16 +409,15 @@ int main(int argc, char* argv[])
   uint8_t samples[2 * sizeof(int32_t)] = {0};
   while (fread(samples, sampleSize, 2, file) > 0 && buffer_index < RASPDIF_BUFFER_COUNT)
   {
-    raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-
     // Parse sample buffer in proper format
     int32_t sampleA = raspdifParseSample(arguments.format, &samples[0]);
     int32_t sampleB = raspdifParseSample(arguments.format, &samples[sampleSize]);
 
+    raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
     bool full = raspdifBufferSamples(buffer, &block, arguments.format, sampleA, sampleB);
     
-      if (full)
-        buffer_index++;
+    if (full)
+      buffer_index++;
   }
   
   LOGI(TAG, "Transmitting...");
@@ -436,9 +435,7 @@ int main(int argc, char* argv[])
   // Read file until EOS. Note: files opened in r+ will not emit EOF
   while(!feof(file))
   {
-    const dma_control_block_t* activeControl = dmaGetControlBlock(raspdif.dmaChannel);
-
-    if (activeControl == &raspdif.control.bus->controlBlocks[buffer_index])
+    if (dmaGetControlBlock(raspdif.dmaChannel) == &raspdif.control.bus->controlBlocks[buffer_index])
     {
       // If DMA is using current buffer, delay by approx 1 buffer's duration
       microsleep(1e6 * (RASPDIF_BUFFER_SIZE / arguments.sample_rate));
@@ -467,12 +464,11 @@ int main(int argc, char* argv[])
       continue;
     }
 
-    raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-
     // Parse sample buffer in proper format
     int32_t sampleA = raspdifParseSample(arguments.format, &samples[0]);
     int32_t sampleB = raspdifParseSample(arguments.format, &samples[sampleSize]);
 
+    raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
     bool full = raspdifBufferSamples(buffer, &block, arguments.format, sampleA, sampleB);
 
     if (full)
