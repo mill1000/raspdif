@@ -20,7 +20,7 @@
 */
 static uint64_t spdifEncodeBiphaseMark(spdif_preamble_t preamble, uint32_t data)
 {
-  // Biphase Marck
+  // Biphase Mark
   // Each bit to be transmitted is 2 binary states
   // 1st is always different from previous, 2nd is identical if 0, different if 1
   // Assuming previous was 0
