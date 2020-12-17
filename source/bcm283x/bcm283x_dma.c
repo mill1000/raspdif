@@ -7,7 +7,7 @@
 static void* dma = NULL;
 
 /**
-  @brief  Initalize the DMA object at the given base address
+  @brief  Initialize the DMA object at the given base address
 
   @param  base Base address of DMA peripheral
   @retval none
@@ -77,7 +77,7 @@ void dmaSetControlBlock(dma_channel_t channel, const dma_control_block_t* contro
 }
 
 /**
-  @brief  Get the ative control block for the selected DMA channel
+  @brief  Get the active control block for the selected DMA channel
 
   @param  channel DMA channel number
   @retval dma_control_block_t* - Bus address of active control block

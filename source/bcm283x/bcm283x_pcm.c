@@ -8,7 +8,7 @@
 static bcm283x_pcm_t* pcm = NULL;
 
 /**
-  @brief  Initalize the PCM object at the given base address
+  @brief  Initialize the PCM object at the given base address
 
   @param  base Base address of PCM peripheral
   @retval none

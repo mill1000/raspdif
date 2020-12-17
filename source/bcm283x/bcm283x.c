@@ -11,7 +11,7 @@
 #define TAG "BCM283X"
 
 /**
-  @brief  Initalize BCM283X peripheral modules
+  @brief  Initialize BCM283X peripheral modules
 
   @param  none
   @retval none
@@ -20,7 +20,7 @@ void bcm283x_init()
 {
   static void* virtualBase = NULL;
 
-  // Don't initalize twice
+  // Don't initialize twice
   if (virtualBase != NULL)
   {
     LOGW(TAG, "Already initialized.");
@@ -39,7 +39,7 @@ void bcm283x_init()
     return;
   }
 
-  // Initalize modules at their base addresses
+  // Initialize modules at their base addresses
   clockInit(virtualBase + CLOCK_BASE_OFFSET);
   gpioInit(virtualBase + GPIO_BASE_OFFSET);
   dmaInit(virtualBase + DMA_BASE_OFFSET);

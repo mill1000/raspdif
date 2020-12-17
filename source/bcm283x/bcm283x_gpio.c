@@ -8,7 +8,7 @@
 static bcm283x_gpio_t* gpio = NULL;
 
 /**
-  @brief  Initalize the GPIO object at the given base address
+  @brief  Initialize the GPIO object at the given base address
 
   @param  base Base address of GPIO peripheral
   @retval none

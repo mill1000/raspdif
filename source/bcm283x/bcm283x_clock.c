@@ -7,7 +7,7 @@
 static void* clock = NULL;
 
 /**
-  @brief  Initalize the Clock object at the given base address
+  @brief  Initialize the Clock object at the given base address
 
   @param  base Base address of Clock peripheral
   @retval none
