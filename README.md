@@ -49,7 +49,7 @@ ffmpeg -i some_audio_file.flac -f s16le -acodec pcm_s16le /tmp/spdif_fifo
 ```
 
 ### Play a file directly
-raspif can play a file directly. Files must be raw PCM in S16LE or S24LE format.
+raspdif can play a file directly. Files must be raw PCM in S16LE or S24LE format.
 ```
 sudo raspdif --input ~/some_pcm_file.pcm
 ```
@@ -71,3 +71,19 @@ S/PDIF specification calls for .5 V Vpp when 75 Ohm is connected across the outp
 ![Resistive Divider](raspdif_divider.png)
 
 However, my DAC and receiver have not had an issue receiving the full 3.3 V signal. Use at your own risk.
+
+## Alternate GPIO
+raspdif can be reconfigured to output on GPIO31 instead of the default GPIO21. For Rev 2 boards, GPIO31 is located on the P5 header.
+
+To reconfigure for GPIO31 the following changes need to be made.
+```diff
+  gpio_configuration_t gpioConfig;
+  gpioConfig.eventDetect = gpio_event_detect_none;
+-  gpioConfig.function = gpio_function_af0;
++  gpioConfig.function = gpio_function_af2;
+  gpioConfig.pull = gpio_pull_no_change;
+-  gpioConfigureMask(1 << 21 , &gpioConfig);
++  gpioConfigureMask(1 << 31 , &gpioConfig);
+```
+
+Thanks to @marcoalexcampos0 for digging into this and testing.
