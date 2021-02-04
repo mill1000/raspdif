@@ -1,4 +1,4 @@
-# RASPDIF
+# raspdif - Raspberry Pi S/PDIF
 S/PDIF audio output on Raspberry Pi without a HAT.
 
 raspdif accepts 16 or 24 bit PCM samples from stdin, a file, or a FIFO (named pipe). Samples are encoded and transmitted as S/PDIF data on GPIO21 (Pin 40 on J8). For older boards without a 40-pin header, see [here](#Alternate-GPIO).
