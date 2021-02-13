@@ -484,9 +484,17 @@ int main(int argc, char* argv[])
       continue;
     }
 
-    // Wait on data for at least a 1 buffer duration
-    uint32_t timeout_ms = 1e3 * (RASPDIF_BUFFER_SIZE / arguments.sample_rate);
-    if (poll(&poll_list, 1, timeout_ms) > 0 && fread(samples, sampleSize, 2, file) == 2)
+    // Attempt to read samples
+    bool samples_read = fread(samples, sampleSize, 2, file) == 2;
+    if (!samples_read)
+    {
+      // Wait on data for at least a 1 buffer duration if read fails
+      uint32_t timeout_ms = 1e3 * (RASPDIF_BUFFER_SIZE / arguments.sample_rate);
+      if (poll(&poll_list, 1, timeout_ms) > 0)
+        samples_read = fread(samples, sampleSize, 2, file) == 2;
+    }
+
+    if (samples_read)
     {
       // Parse read sample buffer in proper format
       int32_t sampleA = raspdifParseSample(arguments.format, &samples[0]);
