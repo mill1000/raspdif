@@ -469,6 +469,11 @@ int main(int argc, char* argv[])
   // Reset to first buffer.
   buffer_index = 0;
   
+  // Construct poll arguments
+  struct pollfd poll_list;
+  poll_list.fd = fileno(file);
+  poll_list.events = POLLIN;
+
   // Read file until EOS. Note: files opened in r+ will not emit EOF
   while(!feof(file))
   {
@@ -479,9 +484,23 @@ int main(int argc, char* argv[])
       continue;
     }
 
-    // If read fails (or would block) pause the stream
-    if (fread(samples, sampleSize, 2, file) != 2 && !feof(file))
+    // Wait on data for at least a 1 buffer duration
+    uint32_t timeout_ms = 1e3 * (RASPDIF_BUFFER_SIZE / arguments.sample_rate);
+    if (poll(&poll_list, 1, timeout_ms) > 0 && fread(samples, sampleSize, 2, file) == 2)
     {
+      // Parse read sample buffer in proper format
+      int32_t sampleA = raspdifParseSample(arguments.format, &samples[0]);
+      int32_t sampleB = raspdifParseSample(arguments.format, &samples[sampleSize]);
+
+      raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
+      bool full = raspdifBufferSamples(buffer, &block, arguments.format, sampleA, sampleB);
+
+      if (full)
+        buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
+    }
+    else if (!feof(file))
+    {
+      // If poll timed out or read fails pause the stream
       LOGD(TAG, "Buffer underrun.");
       
       // Zero fill the sample buffers for silence
@@ -497,16 +516,6 @@ int main(int argc, char* argv[])
       LOGD(TAG, "Data available.");
       continue;
     }
-
-    // Parse sample buffer in proper format
-    int32_t sampleA = raspdifParseSample(arguments.format, &samples[0]);
-    int32_t sampleB = raspdifParseSample(arguments.format, &samples[sampleSize]);
-
-    raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-    bool full = raspdifBufferSamples(buffer, &block, arguments.format, sampleA, sampleB);
-
-    if (full)
-      buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
   }
 
   // TODO How do we wait until the end of the stream
