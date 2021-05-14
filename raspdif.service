@@ -1,0 +1,13 @@
+[Unit]
+Description=raspdif
+After=syslog.service
+
+[Service]
+ExecStartPre=/usr/bin/mkfifo /tmp/spdif_fifo
+ExecStart=/usr/local/bin/raspdif --file /tmp/spdif_fifo
+StandardOuptut=syslog
+Standardrror=syslog
+SyslogIdentifier=raspdif
+
+[Install]
+WantedBy=multi-user.target
