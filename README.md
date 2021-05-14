@@ -17,10 +17,68 @@ Install to default location (`/usr/local/bin`)
 sudo make install
 ```
 
-## Usage
+## Arguments
 Check `raspdif --help` for additional arguments.
 
-There are 3 ways of utilizing raspdif.
+## ALSA Configuration
+ALSA can be configured to use raspdif in a seamless manner. Any application that supports ALSA will output via raspdif. It also allows access to other ALSA plugins like `dmix` or `softvol`. 
+
+First, a PCM device is defined that outputs raw samples to a FIFO. This [example configuration](asound.conf) can be used in either `/etc/asound.conf` for system wide configuration or `~/.asoundrc` for user configuration.
+```
+pcm.!default {
+  type plug
+  slave.pcm "raspdif"
+}
+
+pcm.raspdif {
+  type plug
+  slave {
+    pcm {
+      type file
+      file "/tmp/spdif_fifo"
+      format "raw"
+      slave.pcm null
+    }
+    rate 44100
+    format S16_LE
+    channels 2
+  }
+  hint {
+    description "S/PDIF output via raspdif FIFO"
+  }
+}
+```
+
+A raspdif device should now be visible with `aplay -L`.
+```
+$ aplay -L
+null
+    Discard all samples (playback) or generate zero samples (capture)
+default
+raspdif
+    S/PDIF output via raspdif FIFO
+```
+
+Next, create a raspdif service that monitors the FIFO. This minimal [systemd service](raspdif.service) does a decent job.
+```
+[Unit]
+Description=raspdif
+After=syslog.service
+
+[Service]
+ExecStartPre=/usr/bin/mkfifo /tmp/spdif_fifo
+ExecStart=/usr/local/bin/raspdif --file /tmp/spdif_fifo
+StandardOuptut=syslog
+Standardrror=syslog
+SyslogIdentifier=raspdif
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Playback is now as simple as `aplay some_wav_file.wav` or `gst-play-1.0 some_media_file.flac`.
+
+## Usage
 ### Monitor a FIFO
 raspdif can monitor a FIFO and transmit samples written to it. Silence is output if there is no data in the FIFO.
 
