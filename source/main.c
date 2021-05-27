@@ -33,6 +33,7 @@ typedef struct raspdif_arguments_t
 {
   const char* file;
   bool    verbose;
+  bool    keep_alive;
   double  sample_rate;
   raspdif_format_t format;
 } raspdif_arguments_t;
@@ -44,6 +45,7 @@ static struct argp_option options[] =
   {"input", 'i', "INPUT_FILE", 0 , "Read data from file instead of stdin."},
   {"rate", 'r', "RATE", 0, "Set audio sample rate. Default: 44.1 kHz"},
   {"format", 'f', "FORMAT", 0, "Set audio sample format to s16le or s24le. Default: s16le"},
+  {"no-keep-alive", 'k', 0, 0, "Don't send silent noise during underun."},
   {"verbose", 'v', 0, 0, "Enable debug messages."},
   {0}
 };
@@ -77,6 +79,7 @@ static error_t parse_opt(int key, char* arg, struct argp_state* state)
     case 'i': arguments->file = arg; break;
     case 'r': arguments->sample_rate = strtod(arg, NULL); break;
     case 'v': arguments->verbose = true; break;
+    case 'k': arguments->keep_alive = false; break;
     default: return ARGP_ERR_UNKNOWN;
   }
   
@@ -311,23 +314,31 @@ static int32_t raspdifParseSample(raspdif_format_t format, uint8_t* buffer)
 }
 
 /**
-  @brief  Fill all buffers with a sample value of zero
+  @brief  Fill all buffers with white noise or zeros
 
   @param  buffer_index Current buffer index to start filling from
   @param  block SPDIF block so proper frames can be encoded
   @param  format Format of samples
   @param  sample_rate Sample rate to estimate latency when delaying on DMA
+  @param  keep_alive Transmit quiet white noise to keep equipment alive
   @retval none
 */
-static void raspdifZeroFillBuffers(uint8_t buffer_index, spdif_block_t* block, raspdif_format_t format, double sample_rate)
+static void raspdifFillBuffers(uint8_t buffer_index, spdif_block_t* block, raspdif_format_t format, double sample_rate, bool keep_alive)
 {
+  // Seed random generator if using keep-alive
+  if (keep_alive)
+    srand(time(NULL));
+
+  // Macro to generate samples for fill
+  #define FILL_SAMPLE (keep_alive ? ((rand() % 10) - 5) : 0)
+
   // Zero fill remainder of current buffer
   raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-  while (!raspdifBufferSamples(buffer, block, format, 0, 0));
+  while (!raspdifBufferSamples(buffer, block, format, FILL_SAMPLE, FILL_SAMPLE));
 
   buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
 
-  // Zero fill all the buffers, while waiting on DMA if necessary
+  // Fill all the buffers, while waiting on DMA if necessary
   uint8_t fill_count = 0;
   while (fill_count < RASPDIF_BUFFER_COUNT)
   {
@@ -339,7 +350,7 @@ static void raspdifZeroFillBuffers(uint8_t buffer_index, spdif_block_t* block, r
     }
 
     raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-    while (!raspdifBufferSamples(buffer, block, format, 0, 0));
+    while (!raspdifBufferSamples(buffer, block, format, FILL_SAMPLE, FILL_SAMPLE));
 
     buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
 
@@ -403,9 +414,10 @@ int main(int argc, char* argv[])
   raspdif_arguments_t arguments;
   memset(&arguments, 0, sizeof(raspdif_arguments_t));
 
-  // Set default sample rate
+  // Set default sample rate, format and keep-alive
   arguments.sample_rate = RASPDIF_DEFAULT_SAMPLE_RATE;
   arguments.format = RASPDIF_DEFAULT_FORMAT;
+  arguments.keep_alive = true;
 
   // Parse command line args
   struct argp argp = {options, parse_opt, NULL, NULL};
@@ -485,7 +497,7 @@ int main(int argc, char* argv[])
       LOGD(TAG, "Buffer underrun.");
       
       // Zero fill the sample buffers for silence
-      raspdifZeroFillBuffers(buffer_index, &block, arguments.format, arguments.sample_rate);
+      raspdifFillBuffers(buffer_index, &block, arguments.format, arguments.sample_rate, arguments.keep_alive);
 
       // Wait for file to be readable
       struct pollfd poll_list;
