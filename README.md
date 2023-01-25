@@ -76,6 +76,13 @@ SyslogIdentifier=raspdif
 WantedBy=multi-user.target
 ```
 
+Copy `raspdif.service` to `/etc/systemd/system` and run the following.
+```
+sudo systemctl daemon-reload
+sudo systemctl enable raspdif.service
+sudo systemctl start raspdif.service
+```
+
 Playback is now as simple as `aplay some_wav_file.wav` or `gst-play-1.0 some_media_file.flac`.
 
 ## Usage
@@ -145,3 +152,7 @@ To reconfigure for GPIO31 the following changes need to be made.
 ```
 
 Thanks to @marcoalexcampos0 for digging into this and testing.
+
+## TOSLINK Optical Output
+Thanks to @tlalexander.
+> I have discovered that if you hook up a red LED and a resistor (I used about 600 ohms) to the output pin and ground, this works for optical audio output.
