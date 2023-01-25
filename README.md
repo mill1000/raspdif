@@ -3,6 +3,15 @@ S/PDIF audio output on Raspberry Pi without a HAT.
 
 raspdif accepts 16 or 24 bit PCM samples from stdin, a file, or a FIFO (named pipe). Samples are encoded and transmitted as S/PDIF data on GPIO21 (Pin 40 on J8). For older boards without a 40-pin header, see [here](#Alternate-GPIO).
 
+**Table Of Contents**
+- [Building](#building)
+- [Arguments](#arguments)
+- [ALSA Configuration](#alsa-configuration)
+- [Manual Usage](#manual-usage)
+- [Signal Levels](#signal-levels)
+- [Alternate GPIO](#alternate-gpio)
+- [TOSLINK Optical Output](#toslink-optical-output)
+
 ## Building
 ### Prerequisites
 * clang - Tested against `clang version 3.8.1-24+rpi1`
@@ -85,7 +94,7 @@ sudo systemctl start raspdif.service
 
 Playback is now as simple as `aplay some_wav_file.wav` or `gst-play-1.0 some_media_file.flac`.
 
-## Usage
+## Manual Usage
 ### Monitor a FIFO
 raspdif can monitor a FIFO and transmit samples written to it. Silence is output if there is no data in the FIFO.
 
