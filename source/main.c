@@ -155,6 +155,7 @@ static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
   
   // Save DMA channel
   raspdif.dmaChannel = dmaChannel;
+  LOGD(TAG, "Initializing with DMA channel %d.", dmaChannel);
 
   // Allocate buffers and control blocks in physical memory
   memory_physical_t memory = memoryAllocatePhysical(sizeof(raspdif_control_t));
@@ -199,7 +200,8 @@ static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
   double spdif_clock = sampleRate_Hz * 64.0 * 2.0;
   LOGD(TAG, "Calculated SPDIF clock of %g Hz for sample rate of %g Hz.", spdif_clock, sampleRate_Hz);
   
-  double divisor = (500e6 / spdif_clock);
+  double pllFreq_Hz = bcm_host_is_model_pi4() ? 750e6 : 500e6;
+  double divisor = (pllFreq_Hz / spdif_clock);
 
   double divi = 0;
   double divf = round(4096 * modf(divisor, &divi));
@@ -431,7 +433,8 @@ int main(int argc, char* argv[])
     logSetLevel(LOG_LEVEL_DEBUG);
 
   // Initialize hardware and buffers
-  raspdifInit(dma_channel_13, arguments.sample_rate);
+  dma_channel_t dmaChannel = bcm_host_is_model_pi4() ? dma_channel_5 : dma_channel_13;
+  raspdifInit(dmaChannel, arguments.sample_rate);
 
   // Allocate storage for a SPDIF block
   spdif_block_t block;
