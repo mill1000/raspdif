@@ -12,7 +12,7 @@ static void* clock = NULL;
   @param  base Base address of Clock peripheral
   @retval none
 */
-void clockInit(void* base)
+void bcm283x_clock_init(void* base)
 {
   assert(base != NULL);
   assert(clock == NULL);
@@ -26,7 +26,7 @@ void clockInit(void* base)
   @param  peripheral Target peripheral to fetch clock config for
   @retval bcm283x_clock_t*
 */
-static bcm283x_clock_t* clockGetPeripheralClock(clock_peripheral_t peripheral)
+static bcm283x_clock_t* bcm283x_clock_get_peripheral_clock(clock_peripheral_t peripheral)
 {
   assert(clock != NULL);
   assert(peripheral < clock_peripheral_max);
@@ -68,9 +68,9 @@ static bcm283x_clock_t* clockGetPeripheralClock(clock_peripheral_t peripheral)
   @param  enable Enable the peripheral clock
   @retval void
 */
-void clockEnable(clock_peripheral_t peripheral, bool enable)
+void bcm283x_clock_enable(clock_peripheral_t peripheral, bool enable)
 {
-  bcm283x_clock_t* clock = clockGetPeripheralClock(peripheral);
+  bcm283x_clock_t* clock = bcm283x_clock_get_peripheral_clock(peripheral);
 
   assert(clock != NULL);
 
@@ -93,9 +93,9 @@ void clockEnable(clock_peripheral_t peripheral, bool enable)
   @param  peripheral Target peripheral clock wait on
   @retval void
 */
-void clockWaitBusy(clock_peripheral_t peripheral)
+void bcm283x_clock_wait_busy(clock_peripheral_t peripheral)
 {
-  bcm283x_clock_t* clock = clockGetPeripheralClock(peripheral);
+  bcm283x_clock_t* clock = bcm283x_clock_get_peripheral_clock(peripheral);
 
   assert(clock != NULL);
 
@@ -111,14 +111,14 @@ void clockWaitBusy(clock_peripheral_t peripheral)
   @param  config Clock configuration to load
   @retval void
 */
-void clockConfigure(clock_peripheral_t peripheral, const clock_configuration_t* config)
+void bcm283x_clock_configure(clock_peripheral_t peripheral, const clock_configuration_t* config)
 {
   assert(config != NULL);
 
   assert(config->divi > 0 && config->divi < 4096);
   assert(config->divf >= 0 && config->divf < 4096);
 
-  bcm283x_clock_t* clock = clockGetPeripheralClock(peripheral);
+  bcm283x_clock_t* clock = bcm283x_clock_get_peripheral_clock(peripheral);
 
   assert(clock != NULL);
 

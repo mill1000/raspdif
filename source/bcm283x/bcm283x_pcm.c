@@ -13,7 +13,7 @@ static bcm283x_pcm_t* pcm = NULL;
   @param  base Base address of PCM peripheral
   @retval none
 */
-void pcmInit(void* base)
+void bcm283x_pcm_init(void* base)
 {
   assert(base != NULL);
   assert(pcm == NULL);
@@ -27,7 +27,7 @@ void pcmInit(void* base)
   @param  none
   @retval none
 */
-static void pcmSync()
+static void bcm283x_pcm_sync()
 {
   assert(pcm != NULL);
 
@@ -51,7 +51,7 @@ static void pcmSync()
   @param  none
   @retval none
 */
-void pcmReset()
+void bcm283x_pcm_reset()
 {
   assert(pcm != NULL);
 
@@ -102,7 +102,7 @@ void pcmReset()
   @param  none
   @retval none
 */
-void pcmClearFifos()
+void bcm283x_pcm_clear_fifos()
 {
   assert(pcm != NULL);
 
@@ -111,7 +111,7 @@ void pcmClearFifos()
   pcm->CS_A.TXCLR = 1;
   pcm->CS_A.RXCLR = 1;
 
-  pcmSync();
+  bcm283x_pcm_sync();
 }
 
 /**
@@ -121,7 +121,7 @@ void pcmClearFifos()
   @param  config PCM DMA configuration for TX & RX
   @retval none
 */
-void pcmConfigureDma(bool enable, const pcm_dma_config_t* config)
+void bcm283x_pcm_configure_dma(bool enable, const pcm_dma_config_t* config)
 {
   assert(pcm != NULL);
   assert(config != NULL);
@@ -151,7 +151,7 @@ void pcmConfigureDma(bool enable, const pcm_dma_config_t* config)
   @param  channel2 Channel 2 configuration. NULL to disable.
   @retval void
 */
-static void pcmConfigureChannels(volatile pcm_tx_rx_config_t* reg, const pcm_channel_config_t* channel1, const pcm_channel_config_t* channel2)
+static void bcm283x_pcm_configure_channels(volatile pcm_tx_rx_config_t* reg, const pcm_channel_config_t* channel1, const pcm_channel_config_t* channel2)
 {
   WMB();
 
@@ -179,11 +179,11 @@ static void pcmConfigureChannels(volatile pcm_tx_rx_config_t* reg, const pcm_cha
   @param  channel2 Channel 2 configuration. NULL to disable.
   @retval void
 */
-void pcmConfigureTransmitChannels(const pcm_channel_config_t* channel1, const pcm_channel_config_t* channel2)
+void bcm283x_pcm_configure_transmit_channels(const pcm_channel_config_t* channel1, const pcm_channel_config_t* channel2)
 {
   assert(pcm != NULL);
 
-  pcmConfigureChannels(&pcm->TXC_A, channel1, channel2);
+  bcm283x_pcm_configure_channels(&pcm->TXC_A, channel1, channel2);
 }
 
 /**
@@ -193,11 +193,11 @@ void pcmConfigureTransmitChannels(const pcm_channel_config_t* channel1, const pc
   @param  channel2 Channel 2 configuration. NULL to disable.
   @retval void
 */
-void pcmConfigureReceiveChannels(const pcm_channel_config_t* channel1, const pcm_channel_config_t* channel2)
+void bcm283x_pcm_configure_receive_channels(const pcm_channel_config_t* channel1, const pcm_channel_config_t* channel2)
 {
   assert(pcm != NULL);
   
-  pcmConfigureChannels(&pcm->RXC_A, channel1, channel2);
+  bcm283x_pcm_configure_channels(&pcm->RXC_A, channel1, channel2);
 }
 
 /**
@@ -206,7 +206,7 @@ void pcmConfigureReceiveChannels(const pcm_channel_config_t* channel1, const pcm
   @param  config PCM configuration to set
   @retval void
 */
-static void pcmConfigureMode(const pcm_configuration_t* config)
+static void bcm283x_pcm_configure_mode(const pcm_configuration_t* config)
 {
   volatile pcm_mode_t* mode = &pcm->MODE_A;
 
@@ -240,7 +240,7 @@ static void pcmConfigureMode(const pcm_configuration_t* config)
   @param  config PCM configuration to set
   @retval void
 */
-void pcmConfigure(const pcm_configuration_t* config)
+void bcm283x_pcm_configure(const pcm_configuration_t* config)
 {
   assert(pcm != NULL);
   assert(config != NULL);
@@ -260,7 +260,7 @@ void pcmConfigure(const pcm_configuration_t* config)
   bcm283x_delay_microseconds(10);
 
   // Configure the mode register
-  pcmConfigureMode(config);
+  bcm283x_pcm_configure_mode(config);
 
   // Configure FIFO thresholds for setting TXW and RXW bits
   pcm->CS_A.TXTHR = config->fifo.txThreshold;
@@ -278,7 +278,7 @@ void pcmConfigure(const pcm_configuration_t* config)
   @param  receive Enable the RX interface
   @retval void
 */
-void pcmEnable(bool transmit, bool receive)
+void bcm283x_pcm_enable(bool transmit, bool receive)
 {
   WMB();
 

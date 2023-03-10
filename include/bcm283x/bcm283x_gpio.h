@@ -210,12 +210,12 @@ typedef struct gpio_configuration_t
   gpio_event_detect_t eventDetect;
 } gpio_configuration_t;
 
-void gpioInit(void* base);
-void gpioConfigure(gpio_pin_t pin, const gpio_configuration_t* config);
-void gpioConfigureMask(gpio_pin_mask_t mask, const gpio_configuration_t* config);
-void gpioSet(gpio_pin_t pin);
-void gpioSetMask(gpio_pin_mask_t mask);
-void gpioClear(gpio_pin_t pin);
-void gpioClearMask(gpio_pin_mask_t mask);
+void bcm283x_gpio_init(void* base);
+void bcm283x_gpio_configure(gpio_pin_t pin, const gpio_configuration_t* config);
+void bcm283x_gpio_configure_mask(gpio_pin_mask_t mask, const gpio_configuration_t* config);
+void bcm283x_gpio_set(gpio_pin_t pin);
+void bcm283x_gpio_set_mask(gpio_pin_mask_t mask);
+void bcm283x_gpio_clear(gpio_pin_t pin);
+void bcm283x_gpio_clear_mask(gpio_pin_mask_t mask);
 
 #endif

@@ -45,7 +45,7 @@ static int32_t mailboxSend(void* buffer)
   @param  flags Memory flags to issue with request
   @retval int32_t - Handle for allocated memory block. -1 if error
 */
-int32_t mailboxAllocateMemory(uint32_t size, uint32_t alignment, uint32_t flags)
+int32_t mailbox_allocate_memory(uint32_t size, uint32_t alignment, uint32_t flags)
 {
    mailbox_message_allocate_memory_request_t request;
    memset(&request, 0, sizeof(mailbox_message_allocate_memory_request_t));
@@ -83,7 +83,7 @@ int32_t mailboxAllocateMemory(uint32_t size, uint32_t alignment, uint32_t flags)
   @param  handle Handle from allocation command
   @retval void* - Bus address of memory block. NULL if error
 */
-void* mailboxLockMemory(uint32_t handle)
+void* mailbox_lock_memory(uint32_t handle)
 {
    mailbox_lock_memory_request_t request;
    memset(&request, 0, sizeof(mailbox_lock_memory_request_t));
@@ -120,7 +120,7 @@ void* mailboxLockMemory(uint32_t handle)
   @param  handle Handle from allocation command
   @retval int32_t - Result of command. -1 if error
 */
-int32_t mailboxUnlockMemory(uint32_t handle)
+int32_t mailbox_unlock_memory(uint32_t handle)
 {
    mailbox_unlock_memory_request_t request;
    memset(&request, 0, sizeof(mailbox_unlock_memory_request_t));
@@ -157,7 +157,7 @@ int32_t mailboxUnlockMemory(uint32_t handle)
   @param  handle Handle from allocation command
   @retval int32_t - Result of command. -1 if error
 */
-int32_t mailboxReleaseMemory(uint32_t handle)
+int32_t mailbox_release_memory(uint32_t handle)
 {
    mailbox_release_memory_request_t request;
    memset(&request, 0, sizeof(mailbox_release_memory_request_t));
@@ -194,7 +194,7 @@ int32_t mailboxReleaseMemory(uint32_t handle)
   @param  none
   @retval uint32_t - 0 indicates in use, 1 available
 */
-uint32_t mailboxGetDmaChannelMask()
+uint32_t mailbox_get_dma_channel_mask()
 {
    mailbox_dma_channel_request_t request;
    memset(&request, 0, sizeof(mailbox_dma_channel_request_t));

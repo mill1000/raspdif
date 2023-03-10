@@ -80,7 +80,7 @@ typedef struct spdif_block_t
   spdif_frame_t frames[SPDIF_FRAME_COUNT];
 } spdif_block_t;
 
-uint64_t spdifBuildSubframe(spdif_subframe_t* subframe, spdif_preamble_t preamble, spdif_sample_depth_t depth, int32_t sample);
-void spdifPopulateChannelStatus(spdif_block_t* block);
+uint64_t spdif_build_subframe(spdif_subframe_t* subframe, spdif_preamble_t preamble, spdif_sample_depth_t depth, int32_t sample);
+void spdif_populate_channel_status(spdif_block_t* block);
 
 #endif

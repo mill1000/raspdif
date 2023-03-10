@@ -92,15 +92,15 @@ static error_t parse_opt(int key, char* arg, struct argp_state* state)
   @param  none
   @retval none
 */
-void raspdifShutdown()
+void raspdif_shutdown()
 {
   // Disable PCM and DMA
-  pcmReset();
-  clockEnable(clock_peripheral_pcm, false);
-  dmaEnable(raspdif.dmaChannel, false);
+  bcm283x_pcm_reset();
+  bcm283x_clock_enable(clock_peripheral_pcm, false);
+  bcm283x_dma_enable(raspdif.dmaChannel, false);
   
   // Free allocated memory
-  memoryReleasePhysical(&raspdif.memory);
+  memory_release_physical(&raspdif.memory);
 }
 
 /**
@@ -110,7 +110,7 @@ void raspdifShutdown()
   @param  vControl raspdif_control_t structure in virtual domain
   @retval none
 */
-static void raspdifGenerateDmaControlBlocks(raspdif_control_t* bControl, raspdif_control_t* vControl)
+static void raspdif_generate_dma_control_blocks(raspdif_control_t* bControl, raspdif_control_t* vControl)
 {
   // Construct references to PCM peripheral at its bus addresses
   bcm283x_pcm_t* bPcm = (bcm283x_pcm_t*) (BCM283X_BUS_PERIPHERAL_BASE + PCM_BASE_OFFSET);
@@ -148,7 +148,7 @@ static void raspdifGenerateDmaControlBlocks(raspdif_control_t* bControl, raspdif
   @param  sampleRate_Hz Audio sample rate in Hertz for clock configuration
   @retval none
 */
-static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
+static void raspdif_init(dma_channel_t dmaChannel, double sampleRate_Hz)
 {
   // Initialize BCM peripheral drivers
   bcm283x_init();
@@ -158,7 +158,7 @@ static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
   LOGD(TAG, "Initializing with DMA channel %d.", dmaChannel);
 
   // Allocate buffers and control blocks in physical memory
-  memory_physical_t memory = memoryAllocatePhysical(sizeof(raspdif_control_t));
+  memory_physical_t memory = memory_allocate_physical(sizeof(raspdif_control_t));
   if (memory.address == NULL)
     LOGF(TAG, "Failed to allocate physical memory.");
 
@@ -168,11 +168,11 @@ static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
   // Map the physical memory into our address space
   uint8_t* busBase = (uint8_t*)memory.address;
   uint8_t* physicalBase = busBase - bcm_host_get_sdram_address();
-  uint8_t* virtualBase = (uint8_t*)memoryMapPhysical((off_t)physicalBase, sizeof(raspdif_control_t));
+  uint8_t* virtualBase = (uint8_t*)memory_map_physical((off_t)physicalBase, sizeof(raspdif_control_t));
   if (virtualBase == NULL)
   {
     // Free physical memory
-    memoryReleasePhysical(&memory);
+    memory_release_physical(&memory);
 
     LOGF(TAG, "Failed to map physical memory.");
   }
@@ -184,15 +184,15 @@ static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
   raspdif_control_t* vControl = (raspdif_control_t*) virtualBase;
 
   // Generate DMA control blocks for each SPDIF buffer
-  raspdifGenerateDmaControlBlocks(bControl, vControl);
+  raspdif_generate_dma_control_blocks(bControl, vControl);
 
   // Save references to control structures in both domains
   raspdif.control.bus = bControl;
   raspdif.control.virtual = vControl;
 
   // Configure DMA channel to load PCM from the buffers
-  dmaReset(raspdif.dmaChannel);
-  dmaSetControlBlock(raspdif.dmaChannel, bControl->controlBlocks);
+  bcm283x_dma_reset(raspdif.dmaChannel);
+  bcm283x_dma_set_control_block(raspdif.dmaChannel, bControl->controlBlocks);
 
   // Calculate required PCM clock rate for sample rate
   // 44.1 kHz * 64 bits * 2x (Manchester) -> 5.6448 MHz
@@ -214,11 +214,11 @@ static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
   clockConfig.divi = divi;
   clockConfig.divf = divf;
 
-  clockConfigure(clock_peripheral_pcm, &clockConfig);
-  clockEnable(clock_peripheral_pcm, true);
+  bcm283x_clock_configure(clock_peripheral_pcm, &clockConfig);
+  bcm283x_clock_enable(clock_peripheral_pcm, true);
 
   // Reset PCM peripheral
-  pcmReset();
+  bcm283x_pcm_reset();
 
   // Configure PCM frame, clock and sync modes
   pcm_configuration_t pcmConfig;
@@ -235,7 +235,7 @@ static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
   pcmConfig.frame.rxMode = pcm_frame_unpacked;
 
   pcmConfig.frame.length = 32; // PCM peripheral will transmit 32 bit chunks
-  pcmConfigure(&pcmConfig);
+  bcm283x_pcm_configure(&pcmConfig);
 
   // Enable PCM DMA request and FIFO thresholds
   pcm_dma_config_t dmaConfig;
@@ -243,23 +243,23 @@ static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
 
   dmaConfig.txThreshold = 32;
   dmaConfig.txPanic = 16;
-  pcmConfigureDma(true, &dmaConfig);
+  bcm283x_pcm_configure_dma(true, &dmaConfig);
 
   // Configure the transmit channel 1 for 32 bits
   pcm_channel_config_t txConfig;
   txConfig.width = 32;
   txConfig.position = 0;
-  pcmConfigureTransmitChannels(&txConfig, NULL);
+  bcm283x_pcm_configure_transmit_channels(&txConfig, NULL);
   
   // Clear FIFOs just in case
-  pcmClearFifos();
+  bcm283x_pcm_clear_fifos();
 
   // Configure GPIO 21 as PCM DOUT via AF0
   gpio_configuration_t gpioConfig;
   gpioConfig.eventDetect = gpio_event_detect_none;
   gpioConfig.function = gpio_function_af0;
   gpioConfig.pull = gpio_pull_no_change;
-  gpioConfigureMask(1 << 21 , &gpioConfig);
+  bcm283x_gpio_configure_mask(1 << 21 , &gpioConfig);
 }
 
 /**
@@ -272,7 +272,7 @@ static void raspdifInit(dma_channel_t dmaChannel, double sampleRate_Hz)
   @param  sampleB Audio sample for second channel
   @retval bool - Provided buffer is now full
 */
-static bool raspdifBufferSamples(raspdif_buffer_t* buffer, spdif_block_t* block, raspdif_format_t format, int32_t sampleA, int32_t sampleB)
+static bool raspdif_buffer_samples(raspdif_buffer_t* buffer, spdif_block_t* block, raspdif_format_t format, int32_t sampleA, int32_t sampleB)
 {
   static uint8_t frame_index = 0; // Position within SPDIF block
   static uint32_t sample_count = 0; // Number of samples received. At 44.1 kHz will overflow at 13 hours
@@ -281,11 +281,11 @@ static bool raspdifBufferSamples(raspdif_buffer_t* buffer, spdif_block_t* block,
 
   spdif_frame_t* frame = &block->frames[frame_index];
 
-  uint64_t codeA = spdifBuildSubframe(&frame->a, frame_index == 0 ? spdif_preamble_b : spdif_preamble_m, bitDepth, sampleA);
+  uint64_t codeA = spdif_build_subframe(&frame->a, frame_index == 0 ? spdif_preamble_b : spdif_preamble_m, bitDepth, sampleA);
   buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].a.msb = codeA >> 32;
   buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].a.lsb = codeA;
   
-  uint64_t codeB = spdifBuildSubframe(&frame->b, spdif_preamble_w, bitDepth, sampleB);
+  uint64_t codeB = spdif_build_subframe(&frame->b, spdif_preamble_w, bitDepth, sampleB);
   buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].b.msb = codeB >> 32;
   buffer->sample[sample_count % RASPDIF_BUFFER_SIZE].b.lsb = codeB;
 
@@ -302,7 +302,7 @@ static bool raspdifBufferSamples(raspdif_buffer_t* buffer, spdif_block_t* block,
   @param  buffer Buffer containing raw sample bytes
   @retval int32_t - Sign extended sample
 */
-static int32_t raspdifParseSample(raspdif_format_t format, uint8_t* buffer)
+static int32_t raspdif_parse_sample(raspdif_format_t format, uint8_t* buffer)
 {
   if (format == raspdif_format_s16le)
   {
@@ -325,7 +325,7 @@ static int32_t raspdifParseSample(raspdif_format_t format, uint8_t* buffer)
   @param  keep_alive Transmit quiet white noise to keep equipment alive
   @retval none
 */
-static void raspdifFillBuffers(uint8_t buffer_index, spdif_block_t* block, raspdif_format_t format, double sample_rate, bool keep_alive)
+static void raspdif_fill_buffers(uint8_t buffer_index, spdif_block_t* block, raspdif_format_t format, double sample_rate, bool keep_alive)
 {
   // Seed random generator if using keep-alive
   if (keep_alive)
@@ -336,7 +336,7 @@ static void raspdifFillBuffers(uint8_t buffer_index, spdif_block_t* block, raspd
 
   // Zero fill remainder of current buffer
   raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-  while (!raspdifBufferSamples(buffer, block, format, FILL_SAMPLE, FILL_SAMPLE));
+  while (!raspdif_buffer_samples(buffer, block, format, FILL_SAMPLE, FILL_SAMPLE));
 
   buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
 
@@ -344,7 +344,7 @@ static void raspdifFillBuffers(uint8_t buffer_index, spdif_block_t* block, raspd
   uint8_t fill_count = 0;
   while (fill_count < RASPDIF_BUFFER_COUNT)
   {
-    if (dmaGetControlBlock(raspdif.dmaChannel) == &raspdif.control.bus->controlBlocks[buffer_index])
+    if (bcm283x_dma_get_control_block(raspdif.dmaChannel) == &raspdif.control.bus->controlBlocks[buffer_index])
     {
       // If DMA is using current buffer, delay by approx 1 buffer's duration
       microsleep(1e6 * (RASPDIF_BUFFER_SIZE / sample_rate));
@@ -352,7 +352,7 @@ static void raspdifFillBuffers(uint8_t buffer_index, spdif_block_t* block, raspd
     }
 
     raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-    while (!raspdifBufferSamples(buffer, block, format, FILL_SAMPLE, FILL_SAMPLE));
+    while (!raspdif_buffer_samples(buffer, block, format, FILL_SAMPLE, FILL_SAMPLE));
 
     buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
 
@@ -366,11 +366,11 @@ static void raspdifFillBuffers(uint8_t buffer_index, spdif_block_t* block, raspd
   @param  signal Received POSIX signal
   @retval none
 */
-static void signalHandler(int32_t signal)
+static void signal_handler(int32_t signal)
 {
   LOGW(TAG, "Received signal %s (%d).", sys_siglist[signal], signal);
 
-  raspdifShutdown();
+  raspdif_shutdown();
 
   // Terminate
   exit(EXIT_SUCCESS);
@@ -383,12 +383,12 @@ static void signalHandler(int32_t signal)
   @param  none
   @retval none
 */
-void registerSignalHandler()
+void register_signal_handler()
 {
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
 
-  sa.sa_handler = &signalHandler;
+  sa.sa_handler = &signal_handler;
 
   // Register fatal signal handlers
   sigaction(SIGHUP, &sa, NULL);
@@ -426,22 +426,22 @@ int main(int argc, char* argv[])
   argp_parse (&argp, argc, argv, 0, 0, &arguments);
 
   // Register signal handlers
-  registerSignalHandler();
+  register_signal_handler();
 
   // Increase logging level to debug if requested
   if (arguments.verbose)
-    logSetLevel(LOG_LEVEL_DEBUG);
+    log_set_level(LOG_LEVEL_DEBUG);
 
   // Initialize hardware and buffers
   dma_channel_t dmaChannel = bcm_host_is_model_pi4() ? dma_channel_5 : dma_channel_13;
-  raspdifInit(dmaChannel, arguments.sample_rate);
+  raspdif_init(dmaChannel, arguments.sample_rate);
 
   // Allocate storage for a SPDIF block
   spdif_block_t block;
   memset(&block, 0, sizeof(block));
 
   // Populate each frame with channel status data
-  spdifPopulateChannelStatus(&block);
+  spdif_populate_channel_status(&block);
   
   // Open the target file or stdin
   FILE* file = NULL;
@@ -462,11 +462,11 @@ int main(int argc, char* argv[])
   while (fread(samples, sampleSize, 2, file) > 0 && buffer_index < RASPDIF_BUFFER_COUNT)
   {
     // Parse sample buffer in proper format
-    int32_t sampleA = raspdifParseSample(arguments.format, &samples[0]);
-    int32_t sampleB = raspdifParseSample(arguments.format, &samples[sampleSize]);
+    int32_t sampleA = raspdif_parse_sample(arguments.format, &samples[0]);
+    int32_t sampleB = raspdif_parse_sample(arguments.format, &samples[sampleSize]);
 
     raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-    bool full = raspdifBufferSamples(buffer, &block, arguments.format, sampleA, sampleB);
+    bool full = raspdif_buffer_samples(buffer, &block, arguments.format, sampleA, sampleB);
     
     if (full)
       buffer_index++;
@@ -475,8 +475,8 @@ int main(int argc, char* argv[])
   LOGI(TAG, "Transmitting...");
 
   // Enable DMA and PCM to start transmit
-  dmaEnable(raspdif.dmaChannel, true);
-  pcmEnable(true, false);
+  bcm283x_dma_enable(raspdif.dmaChannel, true);
+  bcm283x_pcm_enable(true, false);
 
   // Set stndin to nonblocking
   fcntl(fileno(file), F_SETFL, O_NONBLOCK);
@@ -487,7 +487,7 @@ int main(int argc, char* argv[])
   // Read file until EOS. Note: files opened in r+ will not emit EOF
   while(!feof(file))
   {
-    if (dmaGetControlBlock(raspdif.dmaChannel) == &raspdif.control.bus->controlBlocks[buffer_index])
+    if (bcm283x_dma_get_control_block(raspdif.dmaChannel) == &raspdif.control.bus->controlBlocks[buffer_index])
     {
       // If DMA is using current buffer, delay by approx 1 buffer's duration
       microsleep(1e6 * (RASPDIF_BUFFER_SIZE / arguments.sample_rate));
@@ -500,7 +500,7 @@ int main(int argc, char* argv[])
       LOGD(TAG, "Buffer underrun.");
       
       // Zero fill the sample buffers for silence
-      raspdifFillBuffers(buffer_index, &block, arguments.format, arguments.sample_rate, arguments.keep_alive);
+      raspdif_fill_buffers(buffer_index, &block, arguments.format, arguments.sample_rate, arguments.keep_alive);
 
       // Wait for file to be readable
       struct pollfd poll_list;
@@ -514,11 +514,11 @@ int main(int argc, char* argv[])
     }
 
     // Parse sample buffer in proper format
-    int32_t sampleA = raspdifParseSample(arguments.format, &samples[0]);
-    int32_t sampleB = raspdifParseSample(arguments.format, &samples[sampleSize]);
+    int32_t sampleA = raspdif_parse_sample(arguments.format, &samples[0]);
+    int32_t sampleB = raspdif_parse_sample(arguments.format, &samples[sampleSize]);
 
     raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-    bool full = raspdifBufferSamples(buffer, &block, arguments.format, sampleA, sampleB);
+    bool full = raspdif_buffer_samples(buffer, &block, arguments.format, sampleA, sampleB);
 
     if (full)
       buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
@@ -527,7 +527,7 @@ int main(int argc, char* argv[])
   // TODO How do we wait until the end of the stream
 
   // Shutdown in a safe manner
-  raspdifShutdown();
+  raspdif_shutdown();
 
   return 0;
 }

@@ -28,7 +28,7 @@ typedef enum
 
 #define LOG_FORMAT(COLOR, LETTER, FORMAT) LOG_COLOR(COLOR) #LETTER ": %s: " FORMAT LOG_RESET_COLOR "\n"
 
-#define _LOG(LEVEL, FORMAT, ...) do {logPrint(LEVEL, FORMAT, ##__VA_ARGS__);} while(0)
+#define _LOG(LEVEL, FORMAT, ...) do {log_print(LEVEL, FORMAT, ##__VA_ARGS__);} while(0)
 
 #define LOGD(TAG, FORMAT, ...) _LOG(LOG_LEVEL_DEBUG, LOG_FORMAT(LOG_COLOR_NONE, D, FORMAT), TAG, ##__VA_ARGS__)
 #define LOGI(TAG, FORMAT, ...) _LOG(LOG_LEVEL_INFO,  LOG_FORMAT(LOG_COLOR_GREEN, I, FORMAT), TAG, ##__VA_ARGS__)
@@ -36,7 +36,7 @@ typedef enum
 #define LOGE(TAG, FORMAT, ...) _LOG(LOG_LEVEL_ERROR, LOG_FORMAT(LOG_COLOR_RED, E, FORMAT), TAG, ##__VA_ARGS__)
 #define LOGF(TAG, FORMAT, ...) _LOG(LOG_LEVEL_FATAL, LOG_FORMAT(LOG_COLOR_RED, F, FORMAT), TAG, ##__VA_ARGS__)
 
-void logPrint(LOG_LEVEL level, const char* format, ...);
-void logSetLevel(LOG_LEVEL level);
+void log_print(LOG_LEVEL level, const char* format, ...);
+void log_set_level(LOG_LEVEL level);
 
 #endif

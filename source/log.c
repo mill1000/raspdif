@@ -12,7 +12,7 @@ static LOG_LEVEL minLevel = LOG_LEVEL_INFO;
   @param  level Minimum log level to print
   @retval none
 */
-void logSetLevel(LOG_LEVEL level)
+void log_set_level(LOG_LEVEL level)
 {
   minLevel = level;
 }
@@ -25,7 +25,7 @@ void logSetLevel(LOG_LEVEL level)
   @param  ... VA list
   @retval none
 */
-void  __attribute__((weak)) logPrint(LOG_LEVEL level, const char* format, ...)
+void  __attribute__((weak)) log_print(LOG_LEVEL level, const char* format, ...)
 {
   if (level < minLevel)
     return;

@@ -216,12 +216,11 @@ typedef struct pcm_configuration_t
   } fifo;
 } pcm_configuration_t;
 
-void pcmInit(void* base);
-void pcmReset(void);
-void pcmClearFifos(void);
-void pcmDump(void);
-void pcmConfigure(const pcm_configuration_t* config);
-void pcmConfigureTransmitChannels(const pcm_channel_config_t* channel1, const pcm_channel_config_t* channel2);
-void pcmConfigureDma(bool enable, const pcm_dma_config_t* config);
-void pcmEnable(bool transmit, bool receive);
+void bcm283x_pcm_init(void* base);
+void bcm283x_pcm_reset(void);
+void bcm283x_pcm_clear_fifos(void);
+void bcm283x_pcm_configure(const pcm_configuration_t* config);
+void bcm283x_pcm_configure_transmit_channels(const pcm_channel_config_t* channel1, const pcm_channel_config_t* channel2);
+void bcm283x_pcm_configure_dma(bool enable, const pcm_dma_config_t* config);
+void bcm283x_pcm_enable(bool transmit, bool receive);
 #endif

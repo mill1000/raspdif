@@ -246,10 +246,10 @@ typedef enum dma_channel_t
   dma_channel_max,
 } dma_channel_t;
 
-void dmaInit(void* base);
-void dmaReset(dma_channel_t channel);
-void dmaSetControlBlock(dma_channel_t channel, const dma_control_block_t* control);
-const dma_control_block_t* dmaGetControlBlock(dma_channel_t channel);
-void dmaEnable(dma_channel_t channel, bool enable);
-bool dmaActive(dma_channel_t channel);
+void bcm283x_dma_init(void* base);
+void bcm283x_dma_reset(dma_channel_t channel);
+void bcm283x_dma_set_control_block(dma_channel_t channel, const dma_control_block_t* control);
+const dma_control_block_t* bcm283x_dma_get_control_block(dma_channel_t channel);
+void bcm283x_dma_enable(dma_channel_t channel, bool enable);
+bool bcm283x_dma_active(dma_channel_t channel);
 #endif

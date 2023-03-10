@@ -110,9 +110,9 @@ typedef struct clock_configuration_t
   uint16_t            divf;
 } clock_configuration_t;
 
-void clockInit(void* base);
-void clockConfigure(clock_peripheral_t peripheral, const clock_configuration_t* config);
-void clockWaitBusy(clock_peripheral_t peripheral);
-void clockEnable(clock_peripheral_t peripheral, bool enable);
+void bcm283x_clock_init(void* base);
+void bcm283x_clock_configure(clock_peripheral_t peripheral, const clock_configuration_t* config);
+void bcm283x_clock_wait_busy(clock_peripheral_t peripheral);
+void bcm283x_clock_enable(clock_peripheral_t peripheral, bool enable);
 
 #endif

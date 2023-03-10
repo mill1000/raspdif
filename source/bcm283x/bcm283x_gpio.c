@@ -13,7 +13,7 @@ static bcm283x_gpio_t* gpio = NULL;
   @param  base Base address of GPIO peripheral
   @retval none
 */
-void gpioInit(void* base)
+void bcm283x_gpio_init(void* base)
 {
   assert(base != NULL);
   assert(gpio == NULL);
@@ -28,7 +28,7 @@ void gpioInit(void* base)
   @param  function GPIO function to set
   @retval none
 */
-static void gpioSetFunction(gpio_pin_t pin, gpio_function_t function)
+static void bcm283x_gpio_set_function(gpio_pin_t pin, gpio_function_t function)
 {
   volatile gpio_function_select_x_t* functionSelect = &gpio->GPFSELx[pin / 10];
 
@@ -55,7 +55,7 @@ static void gpioSetFunction(gpio_pin_t pin, gpio_function_t function)
   @param  config GPIO configuration to set
   @retval void
 */
-void gpioConfigure(gpio_pin_t pin, const gpio_configuration_t* config)
+void bcm283x_gpio_configure(gpio_pin_t pin, const gpio_configuration_t* config)
 {
   assert(gpio != NULL);
   assert(config != NULL);
@@ -63,7 +63,7 @@ void gpioConfigure(gpio_pin_t pin, const gpio_configuration_t* config)
 
   WMB();
 
-  gpioSetFunction(pin, config->function);
+  bcm283x_gpio_set_function(pin, config->function);
 
   // Determine which 32-bit "bank" the pin is in
   uint8_t bank = pin / 32;
@@ -146,13 +146,13 @@ void gpioConfigure(gpio_pin_t pin, const gpio_configuration_t* config)
   @param  config GPIO configuration to set
   @retval void
 */
-void gpioConfigureMask(gpio_pin_mask_t mask, const gpio_configuration_t* config)
+void bcm283x_gpio_configure_mask(gpio_pin_mask_t mask, const gpio_configuration_t* config)
 {
   gpio_pin_t pin = 0;
   while (mask)
   {
     if (mask & 0x01)
-      gpioConfigure(pin, config);
+      bcm283x_gpio_configure(pin, config);
 
     mask >>= 1;
     pin++;
@@ -165,7 +165,7 @@ void gpioConfigureMask(gpio_pin_mask_t mask, const gpio_configuration_t* config)
   @param  pin GPIO pin to set
   @retval void
 */
-void gpioSet(gpio_pin_t pin)
+void bcm283x_gpio_set(gpio_pin_t pin)
 {
   assert(gpio != NULL);
   assert(pin < GPIO_PIN_COUNT);
@@ -186,7 +186,7 @@ void gpioSet(gpio_pin_t pin)
   @param  mask GPIO pin mask to set
   @retval void
 */
-void gpioSetMask(gpio_pin_mask_t mask)
+void bcm283x_gpio_set_mask(gpio_pin_mask_t mask)
 {
   assert(gpio != NULL);
 
@@ -204,7 +204,7 @@ void gpioSetMask(gpio_pin_mask_t mask)
   @param  pin GPIO pin to set
   @retval void
 */
-void gpioClear(gpio_pin_t pin)
+void bcm283x_gpio_clear(gpio_pin_t pin)
 {
   assert(gpio != NULL);
   assert(pin < GPIO_PIN_COUNT);
@@ -225,7 +225,7 @@ void gpioClear(gpio_pin_t pin)
   @param  mask GPIO pin mask to clear
   @retval void
 */
-void gpioClearMask(gpio_pin_mask_t mask)
+void bcm283x_gpio_clear_mask(gpio_pin_mask_t mask)
 {
   assert(gpio != NULL);
 

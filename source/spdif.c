@@ -106,7 +106,7 @@ static uint64_t spdifEncodeBiphaseMark(spdif_preamble_t preamble, uint32_t data)
   @param  sample PCM audio sample
   @retval uint64_t - BMC encoded subframe
 */
-uint64_t spdifBuildSubframe(spdif_subframe_t* subframe, spdif_preamble_t preamble, spdif_sample_depth_t depth, int32_t sample)
+uint64_t spdif_build_subframe(spdif_subframe_t* subframe, spdif_preamble_t preamble, spdif_sample_depth_t depth, int32_t sample)
 {
   switch (depth)
   {
@@ -140,7 +140,7 @@ uint64_t spdifBuildSubframe(spdif_subframe_t* subframe, spdif_preamble_t preambl
   @param  block SPDIF block to populate
   @retval none
 */
-void spdifPopulateChannelStatus(spdif_block_t* block)
+void spdif_populate_channel_status(spdif_block_t* block)
 {
   // Define the SPDIF channel status data
   spdif_pcm_channel_status_t channel_status_a;

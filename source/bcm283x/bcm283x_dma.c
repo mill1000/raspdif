@@ -12,7 +12,7 @@ static void* dma = NULL;
   @param  base Base address of DMA peripheral
   @retval none
 */
-void dmaInit(void* base)
+void bcm283x_dma_init(void* base)
 {
   assert(base != NULL);
   assert(dma == NULL);
@@ -26,7 +26,7 @@ void dmaInit(void* base)
   @param  channel DMA channel number
   @retval bcm283x_dma_channel_t*
 */
-static bcm283x_dma_channel_t* dmaGetChannel(dma_channel_t channel)
+static bcm283x_dma_channel_t* bcm283x_dma_get_channel(dma_channel_t channel)
 {
   assert(dma != NULL);
   assert(channel < dma_channel_max);
@@ -40,9 +40,9 @@ static bcm283x_dma_channel_t* dmaGetChannel(dma_channel_t channel)
   @param  channel DMA channel number
   @retval void
 */
-void dmaReset(dma_channel_t channel)
+void bcm283x_dma_reset(dma_channel_t channel)
 {
-  bcm283x_dma_channel_t* handle = dmaGetChannel(channel);
+  bcm283x_dma_channel_t* handle = bcm283x_dma_get_channel(channel);
 
   WMB();
   handle->CS.RESET = 1;
@@ -64,12 +64,12 @@ void dmaReset(dma_channel_t channel)
   @param  control DMA control block to set on channel
   @retval void
 */
-void dmaSetControlBlock(dma_channel_t channel, const dma_control_block_t* control)
+void bcm283x_dma_set_control_block(dma_channel_t channel, const dma_control_block_t* control)
 {
   // Ensure block is 256 bit aligned
   assert(((uint32_t)control & 0x1F) == 0);
 
-  bcm283x_dma_channel_t* handle = dmaGetChannel(channel);
+  bcm283x_dma_channel_t* handle = bcm283x_dma_get_channel(channel);
 
   WMB();
 
@@ -82,9 +82,9 @@ void dmaSetControlBlock(dma_channel_t channel, const dma_control_block_t* contro
   @param  channel DMA channel number
   @retval dma_control_block_t* - Bus address of active control block
 */
-const dma_control_block_t* dmaGetControlBlock(dma_channel_t channel)
+const dma_control_block_t* bcm283x_dma_get_control_block(dma_channel_t channel)
 {
-  bcm283x_dma_channel_t* handle = dmaGetChannel(channel);
+  bcm283x_dma_channel_t* handle = bcm283x_dma_get_channel(channel);
 
   const dma_control_block_t* control = (const dma_control_block_t*) handle->CONBLK_AD;
 
@@ -100,9 +100,9 @@ const dma_control_block_t* dmaGetControlBlock(dma_channel_t channel)
   @param  enable Enable the channel
   @retval void
 */
-void dmaEnable(dma_channel_t channel, bool enable)
+void bcm283x_dma_enable(dma_channel_t channel, bool enable)
 {
-  bcm283x_dma_channel_t* handle = dmaGetChannel(channel);
+  bcm283x_dma_channel_t* handle = bcm283x_dma_get_channel(channel);
 
   WMB();
 
@@ -115,9 +115,9 @@ void dmaEnable(dma_channel_t channel, bool enable)
   @param  channel DMA channel number
   @retval bool
 */
-bool dmaActive(dma_channel_t channel)
+bool bcm283x_dma_active(dma_channel_t channel)
 {
-  bcm283x_dma_channel_t* handle = dmaGetChannel(channel);
+  bcm283x_dma_channel_t* handle = bcm283x_dma_get_channel(channel);
 
   bool active = handle->CS.ACTIVE;
 
