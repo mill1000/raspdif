@@ -25,12 +25,16 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	$(CC) $(LDFLAGS) $^ -o $@ 
 
-$(BUILD_DIR)/%.c.o: %.c
+$(BUILD_DIR)/%.c.o: %.c $(INC_BASE)/git_version.h
 	@$(MKDIR_P) $(dir $@)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@	
 
-git_version.h: .PHONY
-	echo "#define GIT_VERSION \"Commit: $(shell git describe --dirty --always --tags)\"" > $(INC_BASE)/$@
+$(INC_BASE)/git_version.h: .FORCE
+	echo "#define GIT_VERSION \"Commit: $(shell git describe --dirty --always --tags)\"" > $@-new; \
+	cmp -s $@ $@-new || cp $@-new $@; \
+	rm $@-new
+
+.FORCE:
 
 .PHONY: clean install uninstall
 clean:
