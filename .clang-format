@@ -1,0 +1,12 @@
+BasedOnStyle: Google
+AlignConsecutiveBitFields: Consecutive
+AlignConsecutiveMacros: Consecutive
+AllowShortBlocksOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+BreakBeforeBraces: Allman
+ColumnLimit: 0
+ContinuationIndentWidth : 2
+IncludeBlocks : Preserve
+IndentWidth: 2
+PointerAlignment: Left
+SpacesBeforeTrailingComments: 1

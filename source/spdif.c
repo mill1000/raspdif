@@ -1,5 +1,5 @@
-#include <string.h>
 #include <arm_acle.h>
+#include <string.h>
 
 #include "spdif.h"
 
@@ -51,6 +51,7 @@ static uint64_t spdifEncodeBiphaseMark(spdif_preamble_t preamble, uint32_t data)
 
   // LUT to BMC encode nibbles
   // Invert if last state was 1
+  // clang-format off
   static uint8_t bmcLut0[16] = 
   {
     0xCC, 0xCD, 0xCB, 0xCA,
@@ -58,10 +59,11 @@ static uint64_t spdifEncodeBiphaseMark(spdif_preamble_t preamble, uint32_t data)
     0xB3, 0xB2, 0xB4, 0xB5,
     0xAC, 0xAD, 0xAB, 0xAA,
   };
+  // clang-format on
 
   union
   {
-    uint8_t  byte[8];
+    uint8_t byte[8];
     uint64_t raw;
   } bmc;
 
@@ -70,17 +72,17 @@ static uint64_t spdifEncodeBiphaseMark(spdif_preamble_t preamble, uint32_t data)
   {
     case spdif_preamble_b:
       bmc.byte[7] = SPDIF_PREAMBLE_B;
-    break;
+      break;
 
     case spdif_preamble_m:
       bmc.byte[7] = SPDIF_PREAMBLE_M;
-    break;
+      break;
 
     case spdif_preamble_w:
       bmc.byte[7] = SPDIF_PREAMBLE_W;
-    break;
+      break;
   }
-  
+
   // Encode data a nibble at a time
   // Code is inversted if previous state was 1
   // Aux Data
@@ -89,10 +91,10 @@ static uint64_t spdifEncodeBiphaseMark(spdif_preamble_t preamble, uint32_t data)
   bmc.byte[5] = bmcLut0[(data >> 20) & 0xF] ^ -(int)(bmc.byte[6] & 1); // Branchless inversion yo!
   bmc.byte[4] = bmcLut0[(data >> 16) & 0xF] ^ -(int)(bmc.byte[5] & 1);
   bmc.byte[3] = bmcLut0[(data >> 12) & 0xF] ^ -(int)(bmc.byte[4] & 1);
-  bmc.byte[2] = bmcLut0[(data >> 8) & 0xF] ^  -(int)(bmc.byte[3] & 1);
-  bmc.byte[1] = bmcLut0[(data >> 4) & 0xF] ^  -(int)(bmc.byte[2] & 1);
+  bmc.byte[2] = bmcLut0[(data >> 8) & 0xF] ^ -(int)(bmc.byte[3] & 1);
+  bmc.byte[1] = bmcLut0[(data >> 4) & 0xF] ^ -(int)(bmc.byte[2] & 1);
   // Valid, User, Status, Parity
-  bmc.byte[0] = bmcLut0[(data >> 0) & 0xF] ^  -(int)(bmc.byte[1] & 1);
+  bmc.byte[0] = bmcLut0[(data >> 0) & 0xF] ^ -(int)(bmc.byte[1] & 1);
 
   return bmc.raw;
 }
@@ -120,14 +122,14 @@ uint64_t spdif_build_subframe(spdif_subframe_t* subframe, spdif_preamble_t pream
       subframe->aux = 0;
       break;
 
-  case spdif_sample_depth_24:
+    case spdif_sample_depth_24:
       subframe->sample = sample >> 4; // MSB store in sample
-      subframe->aux = sample & 0xF; // LSB is aux data
+      subframe->aux = sample & 0xF;   // LSB is aux data
       break;
   }
-  
+
   subframe->validity = 0; // 0 Indicates OK. Dumb
-  subframe->parity = 0; // Reset parity before calculating
+  subframe->parity = 0;   // Reset parity before calculating
   subframe->parity = __builtin_popcount(subframe->raw) % 2;
 
   // Encode to biphase mark. PCM peripheral transmits MSBit first so bitflip data
@@ -146,22 +148,22 @@ void spdif_populate_channel_status(spdif_block_t* block)
   spdif_pcm_channel_status_t channel_status_a;
   memset(&channel_status_a, 0, sizeof(spdif_pcm_channel_status_t));
 
-  channel_status_a.aes3 = 0; // SPDIF aka consumer use
-  channel_status_a.compressed = 0; // PCM
+  channel_status_a.aes3 = 0;        // SPDIF aka consumer use
+  channel_status_a.compressed = 0;  // PCM
   channel_status_a.copy_permit = 1; // No copy protection
-  channel_status_a.pcm_mode = 0; // 2 channel, no pre-emphasis
+  channel_status_a.pcm_mode = 0;    // 2 channel, no pre-emphasis
   channel_status_a.mode = 0;
 
   channel_status_a.category_code = 0; // General
 
-  channel_status_a.source_number = 0; // Not indicated
+  channel_status_a.source_number = 0;  // Not indicated
   channel_status_a.channel_number = 1; // Left channel
 
   channel_status_a.sample_frequency = 1; // Not indicated
-  channel_status_a.clock_accuracy = 0; // Level 2 TODO What is L2?
+  channel_status_a.clock_accuracy = 0;   // Level 2 TODO What is L2?
 
-  channel_status_a.word_length = 0; // Max sample length is 20 bits. TODO If we do S24LE this should probably change?
-  channel_status_a.sample_word_length = 0; // Not indicated
+  channel_status_a.word_length = 0;                 // Max sample length is 20 bits. TODO If we do S24LE this should probably change?
+  channel_status_a.sample_word_length = 0;          // Not indicated
   channel_status_a.original_sampling_frequency = 0; // Not indicated
 
   // Duplicate channel status for B and update channel number

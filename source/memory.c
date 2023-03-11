@@ -1,12 +1,12 @@
-#include <sys/mman.h>
-#include <unistd.h>
-#include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
-#include "memory.h"
-#include "mailbox.h"
 #include "log.h"
+#include "mailbox.h"
+#include "memory.h"
 
 #define TAG "Memory"
 
@@ -60,7 +60,7 @@ void* memory_allocate_virtual(size_t length)
   }
 
   LOGD(TAG, "Allocated virtual memory at 0x%X of length %d.", virtual, length);
-  
+
   return virtual;
 }
 
@@ -83,11 +83,11 @@ void* memory_virtual_to_physical(void* virtual)
   }
 
   // Calculate offset into file for the target address
-  off_t offset = ((off_t)virtual / pageSize) * sizeof(pagemap_entry_t);
+  off_t offset = ((off_t) virtual / pageSize) * sizeof(pagemap_entry_t);
 
   LOGD(TAG, "Reading pagemap at offset 0x%X.", offset);
 
-  pagemap_entry_t entry = (pagemap_entry_t) {0};
+  pagemap_entry_t entry = (pagemap_entry_t){0};
   ssize_t read = pread(file, &entry, sizeof(pagemap_entry_t), offset);
 
   int32_t result = close(file);
@@ -102,7 +102,7 @@ void* memory_virtual_to_physical(void* virtual)
 
   assert(entry.present && !entry.swapped);
 
-  return  (void*)((uint32_t)entry.pfn * pageSize) + ((uint32_t)virtual % pageSize);;
+  return (void*)((uint32_t)entry.pfn * pageSize) + ((uint32_t) virtual % pageSize);
 }
 
 /**
@@ -121,7 +121,7 @@ memory_physical_t memory_allocate_physical(size_t length)
   memory.handle = mailbox_allocate_memory(length, sysconf(_SC_PAGE_SIZE), MAILBOX_MEM_FLAG_DIRECT | MAILBOX_MEM_FLAG_ZERO_INIT);
   if (memory.handle < 0)
   {
-    LOGE(TAG, "Failed to allocate memory of length %d via mailbox.", length);    
+    LOGE(TAG, "Failed to allocate memory of length %d via mailbox.", length);
     return memory;
   }
 
@@ -134,7 +134,7 @@ memory_physical_t memory_allocate_physical(size_t length)
   }
 
   LOGD(TAG, "Allocated memory at 0x%X of length %d.", memory.address, length);
-  
+
   return memory;
 }
 

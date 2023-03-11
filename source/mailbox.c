@@ -1,12 +1,12 @@
-#include <string.h>
-#include <errno.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
 #include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
-#include "mailbox.h"
 #include "log.h"
+#include "mailbox.h"
 
 #define TAG "Mailbox"
 
@@ -18,23 +18,23 @@
 */
 static int32_t mailboxSend(void* buffer)
 {
-   assert(buffer != NULL);
-   
-   int32_t mbox = open("/dev/vcio", O_RDONLY);
-   if (mbox < 0)
-   {
-      LOGF(TAG, "Failed to open /dev/vcio. Error: %s", strerror(errno));
-      return -1;
-   }
+  assert(buffer != NULL);
 
-   int32_t result = ioctl(mbox, IOCTL_MBOX_PROPERTY, buffer);
-   if (result < 0)
-      LOGE(TAG, "Failed to send mailbox message via ioctl. Error: %s", strerror(errno));
+  int32_t mbox = open("/dev/vcio", O_RDONLY);
+  if (mbox < 0)
+  {
+    LOGF(TAG, "Failed to open /dev/vcio. Error: %s", strerror(errno));
+    return -1;
+  }
 
-   if (close(mbox) < 0)
-      LOGE(TAG, "Failed to close /dev/vcio. Error: %s", strerror(errno));
+  int32_t result = ioctl(mbox, IOCTL_MBOX_PROPERTY, buffer);
+  if (result < 0)
+    LOGE(TAG, "Failed to send mailbox message via ioctl. Error: %s", strerror(errno));
 
-   return result;
+  if (close(mbox) < 0)
+    LOGE(TAG, "Failed to close /dev/vcio. Error: %s", strerror(errno));
+
+  return result;
 }
 
 /**
@@ -47,34 +47,34 @@ static int32_t mailboxSend(void* buffer)
 */
 int32_t mailbox_allocate_memory(uint32_t size, uint32_t alignment, uint32_t flags)
 {
-   mailbox_message_allocate_memory_request_t request;
-   memset(&request, 0, sizeof(mailbox_message_allocate_memory_request_t));
+  mailbox_message_allocate_memory_request_t request;
+  memset(&request, 0, sizeof(mailbox_message_allocate_memory_request_t));
 
-   request.header.length = sizeof(mailbox_message_allocate_memory_request_t);
-   request.header.code = 0;
+  request.header.length = sizeof(mailbox_message_allocate_memory_request_t);
+  request.header.code = 0;
 
-   request.tag.header.identifier = mailbox_tag_id_allocate_memory;
-   request.tag.header.length = 12; // TODO Define
-   request.tag.header.code = 0;
+  request.tag.header.identifier = mailbox_tag_id_allocate_memory;
+  request.tag.header.length = 12; // TODO Define
+  request.tag.header.code = 0;
 
-   request.tag.size = size;
-   request.tag.alignment = alignment;
-   request.tag.flags = flags;
+  request.tag.size = size;
+  request.tag.alignment = alignment;
+  request.tag.flags = flags;
 
-   request.trailer.end = 0;
+  request.trailer.end = 0;
 
-   if (mailboxSend(&request) < 0)
-      return -1;
+  if (mailboxSend(&request) < 0)
+    return -1;
 
-   mailbox_message_allocate_memory_response_t* response = (mailbox_message_allocate_memory_response_t*) &request;
+  mailbox_message_allocate_memory_response_t* response = (mailbox_message_allocate_memory_response_t*)&request;
 
-   if ((response->header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
-      return -1;
+  if ((response->header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
+    return -1;
 
-   if ((response->tag.header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
-      return -1;
+  if ((response->tag.header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
+    return -1;
 
-   return response->tag.handle;
+  return response->tag.handle;
 }
 
 /**
@@ -85,33 +85,32 @@ int32_t mailbox_allocate_memory(uint32_t size, uint32_t alignment, uint32_t flag
 */
 void* mailbox_lock_memory(uint32_t handle)
 {
-   mailbox_lock_memory_request_t request;
-   memset(&request, 0, sizeof(mailbox_lock_memory_request_t));
+  mailbox_lock_memory_request_t request;
+  memset(&request, 0, sizeof(mailbox_lock_memory_request_t));
 
-   request.header.length = sizeof(mailbox_lock_memory_request_t);
-   request.header.code = 0;
+  request.header.length = sizeof(mailbox_lock_memory_request_t);
+  request.header.code = 0;
 
-   request.tag.header.identifier = mailbox_tag_id_lock_memory;
-   request.tag.header.length = 4; // TODO Define
-   request.tag.header.code = 0;
+  request.tag.header.identifier = mailbox_tag_id_lock_memory;
+  request.tag.header.length = 4; // TODO Define
+  request.tag.header.code = 0;
 
-   request.tag.handle = handle;
+  request.tag.handle = handle;
 
-   request.trailer.end = 0;
+  request.trailer.end = 0;
 
-   if (mailboxSend(&request) < 0)
-      return NULL;
+  if (mailboxSend(&request) < 0)
+    return NULL;
 
-   mailbox_lock_memory_response_t* response = (mailbox_lock_memory_response_t*) &request;
+  mailbox_lock_memory_response_t* response = (mailbox_lock_memory_response_t*)&request;
 
-   if ((response->header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
-      return NULL;
-      
+  if ((response->header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
+    return NULL;
 
-   if ((response->tag.header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
-      return NULL;
+  if ((response->tag.header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
+    return NULL;
 
-   return (void*)response->tag.bus_address;
+  return (void*)response->tag.bus_address;
 }
 
 /**
@@ -122,33 +121,32 @@ void* mailbox_lock_memory(uint32_t handle)
 */
 int32_t mailbox_unlock_memory(uint32_t handle)
 {
-   mailbox_unlock_memory_request_t request;
-   memset(&request, 0, sizeof(mailbox_unlock_memory_request_t));
+  mailbox_unlock_memory_request_t request;
+  memset(&request, 0, sizeof(mailbox_unlock_memory_request_t));
 
-   request.header.length = sizeof(mailbox_unlock_memory_request_t);
-   request.header.code = 0;
+  request.header.length = sizeof(mailbox_unlock_memory_request_t);
+  request.header.code = 0;
 
-   request.tag.header.identifier = mailbox_tag_id_unlock_memory;
-   request.tag.header.length = 4; // TODO Define
-   request.tag.header.code = 0;
+  request.tag.header.identifier = mailbox_tag_id_unlock_memory;
+  request.tag.header.length = 4; // TODO Define
+  request.tag.header.code = 0;
 
-   request.tag.handle = handle;
+  request.tag.handle = handle;
 
-   request.trailer.end = 0;
+  request.trailer.end = 0;
 
-   if (mailboxSend(&request) < 0)
-      return -1;
+  if (mailboxSend(&request) < 0)
+    return -1;
 
-   mailbox_unlock_memory_response_t* response = (mailbox_unlock_memory_response_t*) &request;
+  mailbox_unlock_memory_response_t* response = (mailbox_unlock_memory_response_t*)&request;
 
-   if ((response->header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
-      return -1;
-      
+  if ((response->header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
+    return -1;
 
-   if ((response->tag.header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
-      return -1;
+  if ((response->tag.header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
+    return -1;
 
-   return response->tag.status;
+  return response->tag.status;
 }
 
 /**
@@ -159,33 +157,32 @@ int32_t mailbox_unlock_memory(uint32_t handle)
 */
 int32_t mailbox_release_memory(uint32_t handle)
 {
-   mailbox_release_memory_request_t request;
-   memset(&request, 0, sizeof(mailbox_release_memory_request_t));
+  mailbox_release_memory_request_t request;
+  memset(&request, 0, sizeof(mailbox_release_memory_request_t));
 
-   request.header.length = sizeof(mailbox_release_memory_request_t);
-   request.header.code = 0;
+  request.header.length = sizeof(mailbox_release_memory_request_t);
+  request.header.code = 0;
 
-   request.tag.header.identifier = mailbox_tag_id_release_memory;
-   request.tag.header.length = 4; // TODO Define
-   request.tag.header.code = 0;
+  request.tag.header.identifier = mailbox_tag_id_release_memory;
+  request.tag.header.length = 4; // TODO Define
+  request.tag.header.code = 0;
 
-   request.tag.handle = handle;
+  request.tag.handle = handle;
 
-   request.trailer.end = 0;
+  request.trailer.end = 0;
 
-   if (mailboxSend(&request) < 0)
-      return -1;
+  if (mailboxSend(&request) < 0)
+    return -1;
 
-   mailbox_release_memory_response_t* response = (mailbox_release_memory_response_t*) &request;
+  mailbox_release_memory_response_t* response = (mailbox_release_memory_response_t*)&request;
 
-   if ((response->header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
-      return -1;
-      
+  if ((response->header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
+    return -1;
 
-   if ((response->tag.header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
-      return -1;
+  if ((response->tag.header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
+    return -1;
 
-   return response->tag.status;
+  return response->tag.status;
 }
 
 /**
@@ -196,33 +193,32 @@ int32_t mailbox_release_memory(uint32_t handle)
 */
 uint32_t mailbox_get_dma_channel_mask()
 {
-   mailbox_dma_channel_request_t request;
-   memset(&request, 0, sizeof(mailbox_dma_channel_request_t));
+  mailbox_dma_channel_request_t request;
+  memset(&request, 0, sizeof(mailbox_dma_channel_request_t));
 
-   request.header.length = sizeof(mailbox_dma_channel_request_t);
-   request.header.code = 0;
+  request.header.length = sizeof(mailbox_dma_channel_request_t);
+  request.header.code = 0;
 
-   request.tag.header.identifier = mailbox_tag_id_get_dma_channels;
-   request.tag.header.length = 4;
-   request.tag.header.code = 0;
+  request.tag.header.identifier = mailbox_tag_id_get_dma_channels;
+  request.tag.header.length = 4;
+  request.tag.header.code = 0;
 
-   request.tag.pad = 0;
+  request.tag.pad = 0;
 
-   request.trailer.end = 0;
+  request.trailer.end = 0;
 
-   if (mailboxSend(&request) < 0)
-      return -1;
+  if (mailboxSend(&request) < 0)
+    return -1;
 
-   mailbox_dma_channel_response_t* response = (mailbox_dma_channel_response_t*) &request;
+  mailbox_dma_channel_response_t* response = (mailbox_dma_channel_response_t*)&request;
 
-   if ((response->header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
-      return -1;
-      
+  if ((response->header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
+    return -1;
 
-   if ((response->tag.header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
-      return -1;
+  if ((response->tag.header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
+    return -1;
 
-   LOGD(TAG, "DMA Channel Mask: 0x%X", response->tag.mask);
+  LOGD(TAG, "DMA Channel Mask: 0x%X", response->tag.mask);
 
-   return response->tag.mask;
+  return response->tag.mask;
 }

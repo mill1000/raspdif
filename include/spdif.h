@@ -1,9 +1,9 @@
 #ifndef __SPDIF__
 #define __SPDIF__
 
-#include <stdint.h>
-#include <stdbool.h>
 #include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
 
 #define SPDIF_FRAME_COUNT 192
 
@@ -26,27 +26,27 @@ typedef union spdif_pcm_channel_status_t
   struct
   {
     // Byte 0
-    uint8_t aes3 : 1; // 0 for SPDIF
-    uint8_t compressed : 1; // 0 for PCM
-    uint8_t copy_permit : 1; 
-    uint8_t pcm_mode : 3; // 000 2 channel no pre-emphasis  TODO
-    uint8_t mode : 2; // Channel status format/mode 00
-    
+    uint8_t aes3        : 1; // 0 for SPDIF
+    uint8_t compressed  : 1; // 0 for PCM
+    uint8_t copy_permit : 1;
+    uint8_t pcm_mode    : 3; // 000 2 channel no pre-emphasis  TODO
+    uint8_t mode        : 2; // Channel status format/mode 00
+
     // Byte 1
     uint8_t category_code;
 
     // Byte 2
-    uint8_t source_number : 4; // 000 Do not use
+    uint8_t source_number  : 4; // 000 Do not use
     uint8_t channel_number : 4; // 1 - Left channel, 2 - Right chanel
 
     // Byte 3
     uint8_t sample_frequency : 4; // 0 - 44.1 kHz, 1 - Not indicated
-    uint8_t clock_accuracy : 2;
-    uint8_t _reserved : 2;
+    uint8_t clock_accuracy   : 2;
+    uint8_t _reserved        : 2;
 
     // Byte 4
-    uint8_t word_length : 1; // 0 - 20 bit max sample length
-    uint8_t sample_word_length : 3; // 0 - Not indicated 1 - 16 bits
+    uint8_t word_length                 : 1; // 0 - 20 bit max sample length
+    uint8_t sample_word_length          : 3; // 0 - Not indicated 1 - 16 bits
     uint8_t original_sampling_frequency : 4; // 0 not indicated
 
     uint8_t _reserved2[19];

@@ -1,8 +1,8 @@
-#include <stddef.h>
 #include <assert.h>
+#include <stddef.h>
 
-#include "bcm283x_dma.h"
 #include "bcm283x.h"
+#include "bcm283x_dma.h"
 
 static void* dma = NULL;
 
@@ -31,7 +31,7 @@ static bcm283x_dma_channel_t* bcm283x_dma_get_channel(dma_channel_t channel)
   assert(dma != NULL);
   assert(channel < dma_channel_max);
 
-  return (bcm283x_dma_channel_t*) (dma + (channel * DMA_CHANNEL_OFFSET));
+  return (bcm283x_dma_channel_t*)(dma + (channel * DMA_CHANNEL_OFFSET));
 }
 
 /**
@@ -73,7 +73,7 @@ void bcm283x_dma_set_control_block(dma_channel_t channel, const dma_control_bloc
 
   WMB();
 
-  handle->CONBLK_AD = (dma_control_block_t*) control;
+  handle->CONBLK_AD = (dma_control_block_t*)control;
 }
 
 /**
@@ -86,7 +86,7 @@ const dma_control_block_t* bcm283x_dma_get_control_block(dma_channel_t channel)
 {
   bcm283x_dma_channel_t* handle = bcm283x_dma_get_channel(channel);
 
-  const dma_control_block_t* control = (const dma_control_block_t*) handle->CONBLK_AD;
+  const dma_control_block_t* control = (const dma_control_block_t*)handle->CONBLK_AD;
 
   RMB();
 

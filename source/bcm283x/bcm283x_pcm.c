@@ -1,8 +1,8 @@
-#include <stddef.h>
 #include <assert.h>
+#include <stddef.h>
 
-#include "bcm283x_pcm.h"
 #include "bcm283x.h"
+#include "bcm283x_pcm.h"
 #include "log.h"
 
 static bcm283x_pcm_t* pcm = NULL;
@@ -37,10 +37,10 @@ static void bcm283x_pcm_sync()
   // We don't necessarily know the value of SYNC so toggle it to ensure at least
   // 2 PCM clocks of delay
   pcm->CS_A.SYNC = 0;
-  while(pcm->CS_A.SYNC != 0);
+  while (pcm->CS_A.SYNC != 0) {}
 
   pcm->CS_A.SYNC = 1;
-  while(pcm->CS_A.SYNC != 1);
+  while (pcm->CS_A.SYNC != 1) {}
 
   RMB();
 }
@@ -65,7 +65,7 @@ void bcm283x_pcm_reset()
   bcm283x_delay_microseconds(10);
 
   // Set entire regster to 0
-  pcm->CS_A = (pcm_control_status_t) {0};
+  pcm->CS_A = (pcm_control_status_t){0};
 
   // Clear FIFO
   pcm->CS_A.TXCLR = 1;
@@ -76,11 +76,11 @@ void bcm283x_pcm_reset()
   pcm->CS_A.RXERR = 1;
 
   // Reset mode register
-  pcm->MODE_A = (pcm_mode_t) {0};
+  pcm->MODE_A = (pcm_mode_t){0};
 
   // Reset channel registers
-  pcm->RXC_A = (pcm_rx_config_t) {0};
-  pcm->TXC_A = (pcm_tx_config_t) {0};
+  pcm->RXC_A = (pcm_rx_config_t){0};
+  pcm->TXC_A = (pcm_tx_config_t){0};
 
   // Reset DMA register
   pcm->DREQ_A.TX_PANIC = 0x10;
@@ -89,11 +89,11 @@ void bcm283x_pcm_reset()
   pcm->DREQ_A.RX = 0x20;
 
   // Reset interrupt registers
-  pcm->INTEN_A = (pcm_interrupt_enable_t) {0};
-  pcm->INTSTC_A = (pcm_interrupt_status_t) {0};
+  pcm->INTEN_A = (pcm_interrupt_enable_t){0};
+  pcm->INTSTC_A = (pcm_interrupt_status_t){0};
 
   // Reset GRAY
-  pcm->GRAY = (pcm_gray_control_t) {0}; 
+  pcm->GRAY = (pcm_gray_control_t){0};
 }
 
 /**
@@ -157,7 +157,7 @@ static void bcm283x_pcm_configure_channels(volatile pcm_tx_rx_config_t* reg, con
 
   reg->CH1EN = (channel1 != NULL);
   if (channel1 != NULL)
-  {  
+  {
     reg->CH1POS = channel1->position;
     reg->CH1WID = (channel1->width - 8) & 0xF;
     reg->CH1WEX = channel1->width >= 24;
@@ -196,7 +196,7 @@ void bcm283x_pcm_configure_transmit_channels(const pcm_channel_config_t* channel
 void bcm283x_pcm_configure_receive_channels(const pcm_channel_config_t* channel1, const pcm_channel_config_t* channel2)
 {
   assert(pcm != NULL);
-  
+
   bcm283x_pcm_configure_channels(&pcm->RXC_A, channel1, channel2);
 }
 
@@ -244,7 +244,7 @@ void bcm283x_pcm_configure(const pcm_configuration_t* config)
 {
   assert(pcm != NULL);
   assert(config != NULL);
-  
+
   WMB();
 
   // Enable clock to block

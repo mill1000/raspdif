@@ -1,8 +1,8 @@
-#include <stddef.h>
 #include <assert.h>
+#include <stddef.h>
 
-#include "bcm283x_clock.h"
 #include "bcm283x.h"
+#include "bcm283x_clock.h"
 
 static void* clock = NULL;
 
@@ -42,7 +42,7 @@ static bcm283x_clock_t* bcm283x_clock_get_peripheral_clock(clock_peripheral_t pe
       offset = CLOCK_GP1_OFFSET;
       break;
 
-      case clock_peripheral_gp2:
+    case clock_peripheral_gp2:
       offset = CLOCK_GP2_OFFSET;
       break;
 
@@ -58,7 +58,7 @@ static bcm283x_clock_t* bcm283x_clock_get_peripheral_clock(clock_peripheral_t pe
       return NULL;
   }
 
-  return (bcm283x_clock_t*) (clock + offset);
+  return (bcm283x_clock_t*)(clock + offset);
 }
 
 /**
@@ -99,7 +99,7 @@ void bcm283x_clock_wait_busy(clock_peripheral_t peripheral)
 
   assert(clock != NULL);
 
-  while(clock->CTL.BUSY);
+  while (clock->CTL.BUSY) {}
 
   RMB();
 }
@@ -126,23 +126,23 @@ void bcm283x_clock_configure(clock_peripheral_t peripheral, const clock_configur
   clock_control_t control = clock->CTL;
   control.PASSWD = CLOCK_MANAGER_PASSWORD;
   control.ENAB = 0; // Disable clock generator
-  
+
   WMB();
   clock->CTL = control;
-  
+
   // Wait for idle
-  while (clock->CTL.BUSY);
+  while (clock->CTL.BUSY) {}
   RMB();
 
   // Re configure source, mash and flip bits
-  control = (clock_control_t) {0};
+  control = (clock_control_t){0};
   control.PASSWD = CLOCK_MANAGER_PASSWORD;
   control.SRC = config->source;
   control.MASH = config->mash;
   control.FLIP = config->invert;
 
   // Configure divisor
-  clock_divisor_t divisor = (clock_divisor_t) {0};
+  clock_divisor_t divisor = (clock_divisor_t){0};
   divisor.PASSWD = CLOCK_MANAGER_PASSWORD;
   divisor.DIVI = config->divi;
   divisor.DIVF = config->divf;

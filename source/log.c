@@ -1,5 +1,5 @@
-#include <stdio.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "log.h"
@@ -25,11 +25,11 @@ void log_set_level(log_level_t level)
   @param  ... VA list
   @retval none
 */
-void  __attribute__((weak)) log_print(log_level_t level, const char* format, ...)
+void __attribute__((weak)) log_print(log_level_t level, const char* format, ...)
 {
   if (level < min_level)
     return;
-    
+
   va_list list;
   va_start(list, format);
   vprintf(format, list);

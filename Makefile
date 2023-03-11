@@ -8,6 +8,7 @@ INC_BASE ?= include
 MKDIR_P ?= mkdir -p
 
 SRCS := $(shell find $(SRC_BASE) -name "*.cpp" -or -name "*.c")
+INCS := $(shell find $(INC_BASE) -name "*.h")
 OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 DEPS := $(OBJS:.o=.d)
 TARGET = $(BUILD_DIR)/$(TARGET_NAME)
@@ -46,5 +47,11 @@ install: $(TARGET)
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/${TARGET_NAME}
+
+check-format:
+	clang-format-13 -n $(SRCS) $(INCS)
+
+format:
+	clang-format-13 -i $(SRCS) $(INCS)
 
 -include $(DEPS)

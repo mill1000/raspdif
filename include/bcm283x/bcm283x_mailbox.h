@@ -1,17 +1,17 @@
 #ifndef __BCM283X_MAILBOX__
 #define __BCM283X_MAILBOX__
 
-#include <stdint.h>
-#include <stdbool.h>
 #include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
 
-#define MAILBOX_CODE_SUCCESS  0x80000000
+#define MAILBOX_CODE_SUCCESS 0x80000000
 
 typedef enum
 {
   MAILBOX_MEM_FLAG_DISCARDABLE = 1 << 0,
-  MAILBOX_MEM_FLAG_NORMAL = 0, // Do not use from ARM
-  MAILBOX_MEM_FLAG_DIRECT = 1 << 2, // 0xC alias
+  MAILBOX_MEM_FLAG_NORMAL = 0,        // Do not use from ARM
+  MAILBOX_MEM_FLAG_DIRECT = 1 << 2,   // 0xC alias
   MAILBOX_MEM_FLAG_COHERENT = 2 << 2, // 0x8 alias
   MAILBOX_MEM_FLAG_L1_NONALLOCATING = (MAILBOX_MEM_FLAG_DIRECT | MAILBOX_MEM_FLAG_COHERENT),
   MAILBOX_MEM_FLAG_ZERO_INIT = 1 << 4,
@@ -22,7 +22,7 @@ typedef enum
 typedef struct mailbox_message_header_t
 {
   uint32_t length; // Total message length
-  uint32_t code; // Message request/response code
+  uint32_t code;   // Message request/response code
 } mailbox_message_header_t;
 
 typedef struct mailbox_message_trailer_t
@@ -33,17 +33,17 @@ typedef struct mailbox_message_trailer_t
 typedef enum
 {
   mailbox_tag_id_get_dma_channels = 0x00060001,
-  mailbox_tag_id_allocate_memory  = 0x0003000c,
-  mailbox_tag_id_lock_memory      = 0x0003000d,
-  mailbox_tag_id_unlock_memory    = 0x0003000e,
-  mailbox_tag_id_release_memory   = 0x0003000f,
+  mailbox_tag_id_allocate_memory = 0x0003000c,
+  mailbox_tag_id_lock_memory = 0x0003000d,
+  mailbox_tag_id_unlock_memory = 0x0003000e,
+  mailbox_tag_id_release_memory = 0x0003000f,
 } mailbox_tag_id_t;
 
 typedef struct mailbox_tag_header_t
 {
   uint32_t identifier;
   uint32_t length; // Length of value buffer
-  uint32_t code; // Tag request/Response Code
+  uint32_t code;   // Tag request/Response Code
 } mailbox_tag_header_t;
 
 typedef struct mailbox_dma_channel_request_t

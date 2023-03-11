@@ -1,9 +1,9 @@
 #ifndef __UTILS__
 #define __UTILS__
 
-#include <time.h>
 #include <assert.h>
 #include <stdint.h>
+#include <time.h>
 
 static inline void microsleep(uint32_t microseconds)
 {

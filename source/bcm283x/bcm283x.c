@@ -1,5 +1,5 @@
-#include <stddef.h>
 #include <assert.h>
+#include <stddef.h>
 
 #include <bcm_host.h>
 
@@ -48,7 +48,7 @@ void bcm283x_init()
 
 /**
   @brief  Delay for the target number of microseconds.
-          Primarily a helper function to prevent peripheral drivers 
+          Primarily a helper function to prevent peripheral drivers
           from directly calling POSIX functions
 
   @param  microseconds Delay time in microseconds
