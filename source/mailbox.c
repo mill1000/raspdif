@@ -111,7 +111,7 @@ void* mailbox_lock_memory(uint32_t handle)
    if ((response->tag.header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
       return NULL;
 
-   return (void*)response->tag.busAddress;
+   return (void*)response->tag.bus_address;
 }
 
 /**

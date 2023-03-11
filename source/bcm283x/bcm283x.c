@@ -18,32 +18,32 @@
 */
 void bcm283x_init()
 {
-  static void* virtualBase = NULL;
+  static void* virtual_base = NULL;
 
   // Don't initialize twice
-  if (virtualBase != NULL)
+  if (virtual_base != NULL)
   {
     LOGW(TAG, "Already initialized.");
     return;
   }
 
   // Fetch physical address and length of peripherals for our system
-  off_t physicalBase = bcm_host_get_peripheral_address();
+  off_t physical_base = bcm_host_get_peripheral_address();
   size_t length = bcm_host_get_peripheral_size();
 
   // Map to virtual memory
-  virtualBase = memory_map_physical(physicalBase, length);
-  if (virtualBase == NULL)
+  virtual_base = memory_map_physical(physical_base, length);
+  if (virtual_base == NULL)
   {
     LOGF(TAG, "Failed to map physical memory.");
     return;
   }
 
   // Initialize modules at their base addresses
-  bcm283x_clock_init(virtualBase + CLOCK_BASE_OFFSET);
-  bcm283x_gpio_init(virtualBase + GPIO_BASE_OFFSET);
-  bcm283x_dma_init(virtualBase + DMA_BASE_OFFSET);
-  bcm283x_pcm_init(virtualBase + PCM_BASE_OFFSET);
+  bcm283x_clock_init(virtual_base + CLOCK_BASE_OFFSET);
+  bcm283x_gpio_init(virtual_base + GPIO_BASE_OFFSET);
+  bcm283x_dma_init(virtual_base + DMA_BASE_OFFSET);
+  bcm283x_pcm_init(virtual_base + PCM_BASE_OFFSET);
 }
 
 /**

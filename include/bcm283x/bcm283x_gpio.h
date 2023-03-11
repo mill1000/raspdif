@@ -207,7 +207,7 @@ typedef struct gpio_configuration_t
 {
   gpio_function_t     function;
   gpio_pull_t         pull;
-  gpio_event_detect_t eventDetect;
+  gpio_event_detect_t event_detect;
 } gpio_configuration_t;
 
 void bcm283x_gpio_init(void* base);

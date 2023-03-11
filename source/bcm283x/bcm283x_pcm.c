@@ -127,20 +127,20 @@ void bcm283x_pcm_configure_dma(bool enable, const pcm_dma_config_t* config)
   assert(config != NULL);
 
   // Ensure values are within bounds of FIFO
-  assert(config->txThreshold <= 64);
-  assert(config->rxThreshold <= 64);
-  assert(config->txPanic <= 64);
-  assert(config->rxPanic <= 64);
+  assert(config->tx_threshold <= 64);
+  assert(config->rx_threshold <= 64);
+  assert(config->tx_panic <= 64);
+  assert(config->rx_panic <= 64);
 
   WMB();
 
   pcm->CS_A.DMAEN = enable;
 
-  pcm->DREQ_A.TX_PANIC = config->txPanic;
-  pcm->DREQ_A.TX = config->txThreshold;
+  pcm->DREQ_A.TX_PANIC = config->tx_panic;
+  pcm->DREQ_A.TX = config->tx_threshold;
 
-  pcm->DREQ_A.RX_PANIC = config->rxPanic;
-  pcm->DREQ_A.RX = config->rxThreshold;
+  pcm->DREQ_A.RX_PANIC = config->rx_panic;
+  pcm->DREQ_A.RX = config->rx_threshold;
 }
 
 /**
@@ -214,17 +214,17 @@ static void bcm283x_pcm_configure_mode(const pcm_configuration_t* config)
   mode->FLEN = config->frame.length - 1;
 
   // Configure frame sync
-  mode->FSLEN = config->frameSync.length;
-  mode->FSI = config->frameSync.invert;
-  mode->FSM = (config->frameSync.mode == pcm_frame_sync_master) ? 0 : 1;
+  mode->FSLEN = config->frame_sync.length;
+  mode->FSI = config->frame_sync.invert;
+  mode->FSM = (config->frame_sync.mode == pcm_frame_sync_master) ? 0 : 1;
 
   // Configure clock
   mode->CLKI = config->clock.invert;
   mode->CLKM = (config->clock.mode == pcm_clock_master) ? 0 : 1;
 
   // Configure frame format
-  mode->FTXP = (config->frame.txMode == pcm_frame_unpacked) ? 0 : 1;
-  mode->FTXP = (config->frame.rxMode == pcm_frame_unpacked) ? 0 : 1;
+  mode->FTXP = (config->frame.tx_mode == pcm_frame_unpacked) ? 0 : 1;
+  mode->FTXP = (config->frame.rx_mode == pcm_frame_unpacked) ? 0 : 1;
 
   // Disable PDM mode
   mode->PDME = 0;
@@ -263,8 +263,8 @@ void bcm283x_pcm_configure(const pcm_configuration_t* config)
   bcm283x_pcm_configure_mode(config);
 
   // Configure FIFO thresholds for setting TXW and RXW bits
-  pcm->CS_A.TXTHR = config->fifo.txThreshold;
-  pcm->CS_A.RXTHR = config->fifo.rxThreshold;
+  pcm->CS_A.TXTHR = config->fifo.tx_threshold;
+  pcm->CS_A.RXTHR = config->fifo.rx_threshold;
 
   RMB();
 

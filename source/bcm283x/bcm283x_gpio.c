@@ -79,7 +79,7 @@ void bcm283x_gpio_configure(gpio_pin_t pin, const gpio_configuration_t* config)
   gpio->GPARENx[bank].AREN &= ~mask;
   gpio->GPAFENx[bank].AFEN &= ~mask;
 
-  switch (config->eventDetect)
+  switch (config->event_detect)
   {
     case gpio_event_detect_none:
       // Do nothing

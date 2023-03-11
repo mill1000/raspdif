@@ -188,12 +188,12 @@ typedef enum __attribute__((packed))
 typedef struct dma_control_block_t dma_control_block_t;
 struct dma_control_block_t
 {
-  dma_transfer_information_t  transferInformation; // TI
-  void*                       sourceAddress; // SOURCE_AD
-  void*                       destinationAddress; // DEST_AD
-  dma_transfer_length_t       transferLength; // TXFR_LEN
+  dma_transfer_information_t  transfer_information; // TI
+  void*                       source_address; // SOURCE_AD
+  void*                       destination_address; // DEST_AD
+  dma_transfer_length_t       transfer_length; // TXFR_LEN
   dma_stride_t                stride; // STRIDE
-  dma_control_block_t*        nextControlBlock; // NEXTCONBK
+  dma_control_block_t*        next_control_block; // NEXTCONBK
   uint32_t                    _reserved[2];
 };
 

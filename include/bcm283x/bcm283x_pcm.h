@@ -165,10 +165,10 @@ typedef struct pcm_channel_config_t
 
 typedef struct pcm_dma_config_t
 {
-  uint8_t txThreshold;
-  uint8_t rxThreshold;
-  uint8_t txPanic;
-  uint8_t rxPanic;
+  uint8_t tx_threshold;
+  uint8_t rx_threshold;
+  uint8_t tx_panic;
+  uint8_t rx_panic;
 } pcm_dma_config_t;
 
 typedef enum pcm_fifo_threshold_t
@@ -194,7 +194,7 @@ typedef struct pcm_configuration_t
     uint16_t              length;
     bool                  invert;
     pcm_frame_sync_mode_t mode;
-  } frameSync;
+  } frame_sync;
   // Clock control
   struct
   {
@@ -204,15 +204,15 @@ typedef struct pcm_configuration_t
   // Frame format control
   struct
   {
-    pcm_frame_mode_t txMode;
-    pcm_frame_mode_t rxMode;
+    pcm_frame_mode_t tx_mode;
+    pcm_frame_mode_t rx_mode;
     uint16_t         length;
   } frame;
   // FIFO levels
   struct
   {
-    pcm_fifo_threshold_t txThreshold;
-    pcm_fifo_threshold_t rxThreshold;
+    pcm_fifo_threshold_t tx_threshold;
+    pcm_fifo_threshold_t rx_threshold;
   } fifo;
 } pcm_configuration_t;
 

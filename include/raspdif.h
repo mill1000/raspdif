@@ -34,7 +34,7 @@ static_assert(sizeof(raspdif_buffer_t) <=  UINT16_MAX, "SPDIF buffer must be rep
 
 typedef struct raspdif_control_t
 {
-  dma_control_block_t controlBlocks[RASPDIF_BUFFER_COUNT];
+  dma_control_block_t control_blocks[RASPDIF_BUFFER_COUNT];
   raspdif_buffer_t    buffers[RASPDIF_BUFFER_COUNT];
 } raspdif_control_t;
 

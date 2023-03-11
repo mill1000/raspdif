@@ -4,7 +4,7 @@
 
 #include "log.h"
 
-static LOG_LEVEL minLevel = LOG_LEVEL_INFO;
+static log_level_t min_level = log_level_info;
 
 /**
   @brief  Set the minimum logging level
@@ -12,9 +12,9 @@ static LOG_LEVEL minLevel = LOG_LEVEL_INFO;
   @param  level Minimum log level to print
   @retval none
 */
-void log_set_level(LOG_LEVEL level)
+void log_set_level(log_level_t level)
 {
-  minLevel = level;
+  min_level = level;
 }
 
 /**
@@ -25,9 +25,9 @@ void log_set_level(LOG_LEVEL level)
   @param  ... VA list
   @retval none
 */
-void  __attribute__((weak)) log_print(LOG_LEVEL level, const char* format, ...)
+void  __attribute__((weak)) log_print(log_level_t level, const char* format, ...)
 {
-  if (level < minLevel)
+  if (level < min_level)
     return;
     
   va_list list;
@@ -35,6 +35,6 @@ void  __attribute__((weak)) log_print(LOG_LEVEL level, const char* format, ...)
   vprintf(format, list);
   va_end(list);
 
-  if (level == LOG_LEVEL_FATAL)
+  if (level == log_level_fatal)
     exit(EXIT_FAILURE);
 }

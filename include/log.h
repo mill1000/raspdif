@@ -3,12 +3,12 @@
 
 typedef enum
 {
-  LOG_LEVEL_DEBUG = 0,
-  LOG_LEVEL_INFO,
-  LOG_LEVEL_WARN,
-  LOG_LEVEL_ERROR,
-  LOG_LEVEL_FATAL,
-} LOG_LEVEL;
+  log_level_debug = 0,
+  log_level_info,
+  log_level_warn,
+  log_level_error,
+  log_level_fatal,
+} log_level_t;
 
 #ifndef LOG_DISABLE_COLOR
 #define LOG_COLOR_NONE    ""
@@ -30,13 +30,13 @@ typedef enum
 
 #define _LOG(LEVEL, FORMAT, ...) do {log_print(LEVEL, FORMAT, ##__VA_ARGS__);} while(0)
 
-#define LOGD(TAG, FORMAT, ...) _LOG(LOG_LEVEL_DEBUG, LOG_FORMAT(LOG_COLOR_NONE, D, FORMAT), TAG, ##__VA_ARGS__)
-#define LOGI(TAG, FORMAT, ...) _LOG(LOG_LEVEL_INFO,  LOG_FORMAT(LOG_COLOR_GREEN, I, FORMAT), TAG, ##__VA_ARGS__)
-#define LOGW(TAG, FORMAT, ...) _LOG(LOG_LEVEL_WARN,  LOG_FORMAT(LOG_COLOR_YELLOW, W, FORMAT), TAG, ##__VA_ARGS__)
-#define LOGE(TAG, FORMAT, ...) _LOG(LOG_LEVEL_ERROR, LOG_FORMAT(LOG_COLOR_RED, E, FORMAT), TAG, ##__VA_ARGS__)
-#define LOGF(TAG, FORMAT, ...) _LOG(LOG_LEVEL_FATAL, LOG_FORMAT(LOG_COLOR_RED, F, FORMAT), TAG, ##__VA_ARGS__)
+#define LOGD(TAG, FORMAT, ...) _LOG(log_level_debug, LOG_FORMAT(LOG_COLOR_NONE, D, FORMAT), TAG, ##__VA_ARGS__)
+#define LOGI(TAG, FORMAT, ...) _LOG(log_level_info,  LOG_FORMAT(LOG_COLOR_GREEN, I, FORMAT), TAG, ##__VA_ARGS__)
+#define LOGW(TAG, FORMAT, ...) _LOG(log_level_warn,  LOG_FORMAT(LOG_COLOR_YELLOW, W, FORMAT), TAG, ##__VA_ARGS__)
+#define LOGE(TAG, FORMAT, ...) _LOG(log_level_error, LOG_FORMAT(LOG_COLOR_RED, E, FORMAT), TAG, ##__VA_ARGS__)
+#define LOGF(TAG, FORMAT, ...) _LOG(log_level_fatal, LOG_FORMAT(LOG_COLOR_RED, F, FORMAT), TAG, ##__VA_ARGS__)
 
-void log_print(LOG_LEVEL level, const char* format, ...);
-void log_set_level(LOG_LEVEL level);
+void log_print(log_level_t level, const char* format, ...);
+void log_set_level(log_level_t level);
 
 #endif

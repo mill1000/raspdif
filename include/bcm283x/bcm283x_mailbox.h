@@ -109,7 +109,7 @@ typedef struct mailbox_tag_lock_memory_response_t
   struct
   {
     mailbox_tag_header_t header;
-    uint32_t busAddress;
+    uint32_t bus_address;
   } tag;
   mailbox_message_trailer_t trailer;
 } mailbox_lock_memory_response_t;
