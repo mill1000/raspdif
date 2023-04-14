@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "types.h"
+
 typedef struct pagemap_entry_t
 {
   uint64_t pfn                   : 55;
@@ -19,7 +21,7 @@ typedef struct pagemap_entry_t
 typedef struct memory_physical_t
 {
   int32_t handle;
-  void* address;
+  uintptr32_t address;
 } memory_physical_t;
 
 static_assert(sizeof(pagemap_entry_t) == sizeof(uint64_t), "pagemap_entry_t must be 64 bits.");

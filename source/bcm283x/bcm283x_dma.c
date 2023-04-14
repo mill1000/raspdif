@@ -67,13 +67,13 @@ void bcm283x_dma_reset(dma_channel_t channel)
 void bcm283x_dma_set_control_block(dma_channel_t channel, const dma_control_block_t* control)
 {
   // Ensure block is 256 bit aligned
-  assert(((uint32_t)control & 0x1F) == 0);
+  assert(((uintptr_t)control & 0x1F) == 0);
 
   bcm283x_dma_channel_t* handle = bcm283x_dma_get_channel(channel);
 
   WMB();
 
-  handle->CONBLK_AD = (dma_control_block_t*)control;
+  handle->CONBLK_AD = (uint32_t)(uintptr_t)control;
 }
 
 /**
@@ -86,7 +86,7 @@ const dma_control_block_t* bcm283x_dma_get_control_block(dma_channel_t channel)
 {
   bcm283x_dma_channel_t* handle = bcm283x_dma_get_channel(channel);
 
-  const dma_control_block_t* control = (const dma_control_block_t*)handle->CONBLK_AD;
+  const dma_control_block_t* control = (const dma_control_block_t*)(uintptr_t)handle->CONBLK_AD;
 
   RMB();
 

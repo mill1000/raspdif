@@ -72,9 +72,10 @@ void* memory_allocate_virtual(size_t length)
 */
 memory_physical_t memory_allocate_physical(size_t length)
 {
-  memory_physical_t memory;
-  memory.handle = -1;
-  memory.address = NULL;
+  memory_physical_t memory = {
+    .handle = -1,
+    .address = NULL_PTR32,
+  };
 
   // Attempt to allocate memory from the VC
   memory.handle = mailbox_allocate_memory(length, sysconf(_SC_PAGE_SIZE), MAILBOX_MEM_FLAG_DIRECT | MAILBOX_MEM_FLAG_ZERO_INIT);
@@ -86,7 +87,7 @@ memory_physical_t memory_allocate_physical(size_t length)
 
   // Lock the memory to get an address
   memory.address = mailbox_lock_memory(memory.handle);
-  if (memory.address == NULL)
+  if (memory.address == NULL_PTR32)
   {
     LOGE(TAG, "Failed to lock memory via mailbox.", length);
     return memory;
