@@ -78,7 +78,7 @@ After=syslog.service
 ExecStartPre=/usr/bin/mkfifo /tmp/spdif_fifo
 ExecStart=/usr/local/bin/raspdif --file /tmp/spdif_fifo
 StandardOuptut=syslog
-Standardrror=syslog
+StandardError=syslog
 SyslogIdentifier=raspdif
 
 [Install]

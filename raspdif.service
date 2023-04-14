@@ -7,7 +7,7 @@ ExecStartPre=/usr/bin/rm /tmp/spdif_fifo
 ExecStartPre=/usr/bin/mkfifo /tmp/spdif_fifo -m 777
 ExecStart=/usr/local/bin/raspdif --input /tmp/spdif_fifo
 StandardOuptut=syslog
-Standardrror=syslog
+StandardError=syslog
 SyslogIdentifier=raspdif
 
 [Install]
