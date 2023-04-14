@@ -26,7 +26,6 @@ static_assert(sizeof(pagemap_entry_t) == sizeof(uint64_t), "pagemap_entry_t must
 
 void* memory_map_physical(off_t offset, size_t length);
 void* memory_allocate_virtual(size_t length);
-void* memory_virtual_to_physical(void* virtual);
 memory_physical_t memory_allocate_physical(size_t length);
 int32_t memory_release_physical(const memory_physical_t* memory);
 

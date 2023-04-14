@@ -65,47 +65,6 @@ void* memory_allocate_virtual(size_t length)
 }
 
 /**
-  @brief  Calculate the physical address of a given virtual address using the process pagemap
-
-  @param  virtual Virtual memory address to convert to physical
-  @retval void* - Physical address
-*/
-void* memory_virtual_to_physical(void* virtual)
-{
-  const size_t pageSize = sysconf(_SC_PAGE_SIZE);
-
-  // Open the pagemap for this process
-  int32_t file = open("/proc/self/pagemap", O_RDONLY);
-  if (file == -1)
-  {
-    LOGE(TAG, "Failed to open /proc/self/pagemap. Error: %s", strerror(errno));
-    return NULL;
-  }
-
-  // Calculate offset into file for the target address
-  off_t offset = ((off_t) virtual / pageSize) * sizeof(pagemap_entry_t);
-
-  LOGD(TAG, "Reading pagemap at offset 0x%X.", offset);
-
-  pagemap_entry_t entry = (pagemap_entry_t){0};
-  ssize_t read = pread(file, &entry, sizeof(pagemap_entry_t), offset);
-
-  int32_t result = close(file);
-  if (result == -1)
-    LOGW(TAG, "Failed to close /proc/self/pagemap. Error: %s", strerror(errno));
-
-  if (read != sizeof(pagemap_entry_t))
-  {
-    LOGE(TAG, "Failed to read complete entry from pagemap.");
-    return NULL;
-  }
-
-  assert(entry.present && !entry.swapped);
-
-  return (void*)((uint32_t)entry.pfn * pageSize) + ((uint32_t) virtual % pageSize);
-}
-
-/**
   @brief  Allocate & lock physical memory via the VideoCore
 
   @param  length Length of memory too allocate
