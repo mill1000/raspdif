@@ -76,7 +76,7 @@ static error_t parse_opt(int key, char* arg, struct argp_state* state)
       break;
 
     case 'i':
-      arguments->file = arg;
+            arguments->file = arg;
       break;
 
     case 'r':
@@ -284,7 +284,7 @@ static void raspdif_init(dma_channel_t dma_channel, double sample_rate_hz)
   @param  sample_b Audio sample for second channel
   @retval bool - Provided buffer is now full
 */
-static bool raspdif_buffer_samples(raspdif_buffer_t* buffer, spdif_block_t* block, raspdif_format_t format, int32_t sample_a, int32_t sample_b)
+static bool raspdif_buffer_samples(raspdif_buffer_t* buffer, spdif_block_t *block, raspdif_format_t format, int32_t sample_a, int32_t sample_b)
 {
   static uint8_t frame_index = 0;   // Position within SPDIF block
   static uint32_t sample_count = 0; // Number of samples received. At 44.1 kHz will overflow at 13 hours
