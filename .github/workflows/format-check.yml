@@ -1,0 +1,21 @@
+name: Code Format Check
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: clang-format-13
+          version: 1.0
+
+      - name: make check-format
+        run: make check-format
+
