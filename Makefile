@@ -49,7 +49,7 @@ uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/${TARGET_NAME}
 
 check-format:
-	clang-format-13 -n $(SRCS) $(INCS)
+	clang-format-13 --Werror -n $(SRCS) $(INCS)
 
 format:
 	clang-format-13 -i $(SRCS) $(INCS)
