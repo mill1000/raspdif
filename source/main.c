@@ -33,7 +33,7 @@ typedef struct raspdif_arguments_t
 {
   const char* file;
   bool verbose;
-  bool keep_alive;
+      bool keep_alive;
   double sample_rate;
   raspdif_format_t format;
 } raspdif_arguments_t;
@@ -57,7 +57,7 @@ static struct argp_option options[] = {
   @param  state argp state variable
   @retval error_t
 */
-static error_t parse_opt(int key, char* arg, struct argp_state* state)
+static error_t parse_opt(int key, char *arg, struct argp_state* state)
 {
   raspdif_arguments_t* arguments = state->input;
 
@@ -130,8 +130,7 @@ static void raspdif_generate_dma_control_blocks(raspdif_control_t* b_control, ra
   // Zero-init all control blocks
   memset((void*)v_control->control_blocks, 0, RASPDIF_BUFFER_COUNT * sizeof(dma_control_block_t));
 
-  for (size_t i = 0; i < RASPDIF_BUFFER_COUNT; i++)
-  {
+  for (size_t i = 0; i < RASPDIF_BUFFER_COUNT; i++) {
     // Configure DMA control block for this buffer
     dma_control_block_t* control = &v_control->control_blocks[i];
 
