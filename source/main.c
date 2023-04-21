@@ -469,6 +469,10 @@ int main(int argc, char* argv[])
   else
     file = freopen(NULL, "rb", stdin);
 
+  // Failed to open file
+  if (file == NULL)
+    LOGF(TAG, "Unable to open file. Error: %s.", strerror(errno));
+
   LOGI(TAG, "Estimated latency: %g seconds.", (RASPDIF_BUFFER_COUNT - 1) * (RASPDIF_BUFFER_SIZE / arguments.sample_rate));
   LOGI(TAG, "Waiting for data...");
 
