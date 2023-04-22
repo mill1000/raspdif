@@ -317,17 +317,14 @@ static bool raspdif_buffer_samples(raspdif_buffer_t* buffer, spdif_block_t* bloc
 static int32_t raspdif_parse_sample(raspdif_format_t format, uint8_t* buffer)
 {
   if (format == raspdif_format_s16le)
-  {
     return (int16_t)(buffer[1] << 8 | buffer[0]);
-  }
-  else
+
+  // Sign-extend buffer to int32_t
+  struct
   {
-    struct
-    {
-      signed int x : 24;
-    } s;
-    return s.x = buffer[2] << 16 | buffer[1] << 8 | buffer[0];
-  }
+    signed int x : 24;
+  } s;
+  return s.x = buffer[2] << 16 | buffer[1] << 8 | buffer[0];
 }
 
 /**
