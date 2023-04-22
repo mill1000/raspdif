@@ -16,7 +16,7 @@
   @param  buffer Buffer to send and receiving into
   @retval int32_t - Result of ioctl
 */
-static int32_t mailboxSend(void* buffer)
+static int32_t mailbox_send(void* buffer)
 {
   assert(buffer != NULL);
 
@@ -63,7 +63,7 @@ int32_t mailbox_allocate_memory(uint32_t size, uint32_t alignment, uint32_t flag
 
   request.trailer.end = 0;
 
-  if (mailboxSend(&request) < 0)
+  if (mailbox_send(&request) < 0)
     return -1;
 
   mailbox_message_allocate_memory_response_t* response = (mailbox_message_allocate_memory_response_t*)&request;
@@ -99,7 +99,7 @@ void* mailbox_lock_memory(uint32_t handle)
 
   request.trailer.end = 0;
 
-  if (mailboxSend(&request) < 0)
+  if (mailbox_send(&request) < 0)
     return NULL;
 
   mailbox_lock_memory_response_t* response = (mailbox_lock_memory_response_t*)&request;
@@ -135,7 +135,7 @@ int32_t mailbox_unlock_memory(uint32_t handle)
 
   request.trailer.end = 0;
 
-  if (mailboxSend(&request) < 0)
+  if (mailbox_send(&request) < 0)
     return -1;
 
   mailbox_unlock_memory_response_t* response = (mailbox_unlock_memory_response_t*)&request;
@@ -171,7 +171,7 @@ int32_t mailbox_release_memory(uint32_t handle)
 
   request.trailer.end = 0;
 
-  if (mailboxSend(&request) < 0)
+  if (mailbox_send(&request) < 0)
     return -1;
 
   mailbox_release_memory_response_t* response = (mailbox_release_memory_response_t*)&request;
@@ -207,7 +207,7 @@ uint32_t mailbox_get_dma_channel_mask()
 
   request.trailer.end = 0;
 
-  if (mailboxSend(&request) < 0)
+  if (mailbox_send(&request) < 0)
     return -1;
 
   mailbox_dma_channel_response_t* response = (mailbox_dma_channel_response_t*)&request;

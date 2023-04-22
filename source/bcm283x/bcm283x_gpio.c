@@ -30,48 +30,48 @@ void bcm283x_gpio_init(void* base)
 */
 static void bcm283x_gpio_set_function(gpio_pin_t pin, gpio_function_t function)
 {
-  volatile gpio_function_select_x_t* functionSelect = &gpio->GPFSELx[pin / 10];
+  volatile gpio_function_select_x_t* func_select = &gpio->GPFSELx[pin / 10];
 
   switch (pin % 10)
   {
     case 0:
-      functionSelect->FSELx0 = function;
+      func_select->FSELx0 = function;
       break;
 
     case 1:
-      functionSelect->FSELx1 = function;
+      func_select->FSELx1 = function;
       break;
 
     case 2:
-      functionSelect->FSELx2 = function;
+      func_select->FSELx2 = function;
       break;
 
     case 3:
-      functionSelect->FSELx3 = function;
+      func_select->FSELx3 = function;
       break;
 
     case 4:
-      functionSelect->FSELx4 = function;
+      func_select->FSELx4 = function;
       break;
 
     case 5:
-      functionSelect->FSELx5 = function;
+      func_select->FSELx5 = function;
       break;
 
     case 6:
-      functionSelect->FSELx6 = function;
+      func_select->FSELx6 = function;
       break;
 
     case 7:
-      functionSelect->FSELx7 = function;
+      func_select->FSELx7 = function;
       break;
 
     case 8:
-      functionSelect->FSELx8 = function;
+      func_select->FSELx8 = function;
       break;
 
     case 9:
-      functionSelect->FSELx9 = function;
+      func_select->FSELx9 = function;
       break;
 
     default:

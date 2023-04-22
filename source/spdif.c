@@ -18,7 +18,7 @@
   @param  data 32 bit sub-frame data to encode
   @retval uint64_t - BMC encoded subframe
 */
-static uint64_t spdifEncodeBiphaseMark(spdif_preamble_t preamble, uint32_t data)
+static uint64_t spdif_encode_biphase_mark(spdif_preamble_t preamble, uint32_t data)
 {
   // Biphase Mark
   // Each bit to be transmitted is 2 binary states
@@ -52,7 +52,7 @@ static uint64_t spdifEncodeBiphaseMark(spdif_preamble_t preamble, uint32_t data)
   // LUT to BMC encode nibbles
   // Invert if last state was 1
   // clang-format off
-  static uint8_t bmcLut0[16] = 
+  static uint8_t bmc_lut_0[16] = 
   {
     0xCC, 0xCD, 0xCB, 0xCA,
     0xD3, 0xD2, 0xD4, 0xD5,
@@ -86,15 +86,15 @@ static uint64_t spdifEncodeBiphaseMark(spdif_preamble_t preamble, uint32_t data)
   // Encode data a nibble at a time
   // Code is inversted if previous state was 1
   // Aux Data
-  bmc.byte[6] = bmcLut0[(data >> 24) & 0xF]; // No need to check last state, preamble guarantees 0
+  bmc.byte[6] = bmc_lut_0[(data >> 24) & 0xF]; // No need to check last state, preamble guarantees 0
   // Sample
-  bmc.byte[5] = bmcLut0[(data >> 20) & 0xF] ^ -(int)(bmc.byte[6] & 1); // Branchless inversion yo!
-  bmc.byte[4] = bmcLut0[(data >> 16) & 0xF] ^ -(int)(bmc.byte[5] & 1);
-  bmc.byte[3] = bmcLut0[(data >> 12) & 0xF] ^ -(int)(bmc.byte[4] & 1);
-  bmc.byte[2] = bmcLut0[(data >> 8) & 0xF] ^ -(int)(bmc.byte[3] & 1);
-  bmc.byte[1] = bmcLut0[(data >> 4) & 0xF] ^ -(int)(bmc.byte[2] & 1);
+  bmc.byte[5] = bmc_lut_0[(data >> 20) & 0xF] ^ -(int)(bmc.byte[6] & 1); // Branchless inversion yo!
+  bmc.byte[4] = bmc_lut_0[(data >> 16) & 0xF] ^ -(int)(bmc.byte[5] & 1);
+  bmc.byte[3] = bmc_lut_0[(data >> 12) & 0xF] ^ -(int)(bmc.byte[4] & 1);
+  bmc.byte[2] = bmc_lut_0[(data >> 8) & 0xF] ^ -(int)(bmc.byte[3] & 1);
+  bmc.byte[1] = bmc_lut_0[(data >> 4) & 0xF] ^ -(int)(bmc.byte[2] & 1);
   // Valid, User, Status, Parity
-  bmc.byte[0] = bmcLut0[(data >> 0) & 0xF] ^ -(int)(bmc.byte[1] & 1);
+  bmc.byte[0] = bmc_lut_0[(data >> 0) & 0xF] ^ -(int)(bmc.byte[1] & 1);
 
   return bmc.raw;
 }
@@ -133,7 +133,7 @@ uint64_t spdif_build_subframe(spdif_subframe_t* subframe, spdif_preamble_t pream
   subframe->parity = __builtin_popcount(subframe->raw) % 2;
 
   // Encode to biphase mark. PCM peripheral transmits MSBit first so bitflip data
-  return spdifEncodeBiphaseMark(preamble, __rbit(subframe->raw));
+  return spdif_encode_biphase_mark(preamble, __rbit(subframe->raw));
 }
 
 /**
