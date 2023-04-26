@@ -14,8 +14,13 @@ raspdif accepts 16 or 24 bit PCM samples from stdin, a file, or a FIFO (named pi
 
 ## Building
 ### Prerequisites
-* clang - Tested against `clang version 3.8.1-24+rpi1`
-* A sane build environment with standard libs.
+* clang - Tested against `clang version 3.8.1-24+rpi1` and `clang version 11.0.1-2+rpi1`.
+* 32-bit Raspberry Pi OS (64-bit support is experimental).
+
+Install necessary packages
+```
+sudo apt-get install build-essential clang git
+```
 
 Just run make. No configuration right now.
 ```
