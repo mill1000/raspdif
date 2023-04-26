@@ -80,10 +80,11 @@ Description=raspdif
 After=syslog.service
 
 [Service]
-ExecStartPre=/usr/bin/mkfifo /tmp/spdif_fifo
-ExecStart=/usr/local/bin/raspdif --file /tmp/spdif_fifo
-StandardOutput=syslog
-StandardError=syslog
+ExecStartPre=/usr/bin/rm -f /tmp/spdif_fifo
+ExecStartPre=/usr/bin/mkfifo /tmp/spdif_fifo -m 777
+ExecStart=/usr/local/bin/raspdif --input /tmp/spdif_fifo
+StandardOutput=journal
+StandardError=journal
 SyslogIdentifier=raspdif
 
 [Install]
