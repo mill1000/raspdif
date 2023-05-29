@@ -3,6 +3,7 @@
 
 #include "bcm283x.h"
 #include "bcm283x_dma.h"
+#include "types.h"
 
 static void* dma = NULL;
 
@@ -73,7 +74,7 @@ void bcm283x_dma_set_control_block(dma_channel_t channel, const dma_control_bloc
 
   WMB();
 
-  handle->CONBLK_AD = (uint32_t)(uintptr_t)control;
+  handle->CONBLK_AD = PTR32_CAST(control);
 }
 
 /**

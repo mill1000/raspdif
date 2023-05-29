@@ -100,15 +100,15 @@ uintptr32_t mailbox_lock_memory(uint32_t handle)
   request.trailer.end = 0;
 
   if (mailbox_send(&request) < 0)
-    return NULL_PTR32;
+    return PTR32_NULL;
 
   mailbox_lock_memory_response_t* response = (mailbox_lock_memory_response_t*)&request;
 
   if ((response->header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
-    return NULL_PTR32;
+    return PTR32_NULL;
 
   if ((response->tag.header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
-    return NULL_PTR32;
+    return PTR32_NULL;
 
   return (uintptr32_t)response->tag.bus_address;
 }

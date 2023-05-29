@@ -74,7 +74,7 @@ memory_physical_t memory_allocate_physical(size_t length)
 {
   memory_physical_t memory = {
     .handle = -1,
-    .address = NULL_PTR32,
+    .address = PTR32_NULL,
   };
 
   // Attempt to allocate memory from the VC
@@ -87,7 +87,7 @@ memory_physical_t memory_allocate_physical(size_t length)
 
   // Lock the memory to get an address
   memory.address = mailbox_lock_memory(memory.handle);
-  if (memory.address == NULL_PTR32)
+  if (memory.address == PTR32_NULL)
   {
     LOGE(TAG, "Failed to lock memory via mailbox.", length);
     return memory;
