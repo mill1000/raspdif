@@ -125,7 +125,7 @@ gst-launch-1.0 uridecodebin uri="file://some_audio_file.flac" ! audioconvert ! a
 
 FFMPEG can also write directly to the FIFO.
 ```
-ffmpeg -i some_audio_file.flac -f s16le -acodec pcm_s16le /tmp/spdif_fifo
+ffmpeg -i some_audio_file.flac -f s16le -acodec pcm_s16le -ar 44100 /tmp/spdif_fifo
 ```
 
 ### Play a file directly
@@ -136,7 +136,7 @@ sudo raspdif --input ~/some_pcm_file.pcm
 
 ### Pipe data via stdin
 ```
-ffmpeg -i some_audio_file.flac -f s16le -acodec pcm_s16le - | sudo raspdif
+ffmpeg -i some_audio_file.flac -f s16le -acodec pcm_s16le -ar 44100 - | sudo raspdif
 ```
 
 ### Set the sample rate
