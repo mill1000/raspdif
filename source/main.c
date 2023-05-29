@@ -448,6 +448,10 @@ int main(int argc, char* argv[])
   if (arguments.verbose)
     log_set_level(log_level_debug);
 
+#ifdef TARGET_64BIT
+  LOGW(TAG, "64 bit support is experimental. Please report any issues.");
+#endif
+
   // Initialize hardware and buffers
   dma_channel_t dma_channel = bcm_host_is_model_pi4() ? dma_channel_5 : dma_channel_13;
   raspdif_init(dma_channel, arguments.sample_rate);
