@@ -31,11 +31,8 @@ Install to default location (`/usr/local/bin`)
 sudo make install
 ```
 
-## Arguments
-Check `raspdif --help` for additional arguments.
-
 ## ALSA Configuration
-ALSA can be configured to use raspdif in a seamless manner. Any application that supports ALSA will output via raspdif. It also allows access to other ALSA plugins like `dmix` or `softvol`. 
+ALSA can be configured to use raspdif in a seamless manner. Any application that supports ALSA will output via raspdif. It also allows access to other ALSA plugins like `softvol`. 
 
 First, a PCM device is defined that outputs raw samples to a FIFO. This [example configuration](asound.conf) can be used in either `/etc/asound.conf` for system wide configuration or `~/.asoundrc` for user configuration.
 ```
@@ -99,6 +96,27 @@ sudo systemctl start raspdif.service
 ```
 
 Playback is now as simple as `aplay some_wav_file.wav` or `gst-play-1.0 some_media_file.flac`.
+
+## Optional Arguments
+Check `raspdif --help` for additional optional arguments to tweak behavior.
+```
+Usage: raspdif [OPTION...]
+
+  -f, --format=FORMAT        Set audio sample format to s16le or s24le.
+                             Default: s16le
+  -i, --input=INPUT_FILE     Read data from file instead of stdin.
+  -k, --no-keep-alive        Don't send silent noise during underrun.
+  -r, --rate=RATE            Set audio sample rate. Default: 44.1 kHz
+  -v, --verbose              Enable debug messages.
+  -?, --help                 Give this help list
+      --usage                Give a short usage message
+  -V, --version              Print program version
+
+Mandatory or optional arguments to long options are also mandatory or optional
+for any corresponding short options.
+
+Report bugs to https://github.com/mill1000/raspdif/issues.
+```
 
 ## Manual Usage
 ### Monitor a FIFO
