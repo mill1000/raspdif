@@ -141,22 +141,22 @@ static void raspdif_generate_dma_control_blocks(raspdif_control_t* b_control, ra
     control->transfer_information.WAIT_RESP = 1;
     control->transfer_information.SRC_INC = 1;
 
-    control->source_address = &b_control->buffers[i];
-    control->destination_address = (void*)&b_pcm->FIFO_A;
+    control->source_address = PTR32_CAST(&b_control->buffers[i]);
+    control->destination_address = PTR32_CAST(&b_pcm->FIFO_A);
     control->transfer_length.XLENGTH = sizeof(raspdif_buffer_t);
 
     // Point to next block, or first if at end
-    control->next_control_block = &b_control->control_blocks[(i + 1) % RASPDIF_BUFFER_COUNT];
+    control->next_control_block = PTR32_CAST(&b_control->control_blocks[(i + 1) % RASPDIF_BUFFER_COUNT]);
   }
 
   // Check that blocks loop
-  assert(v_control->control_blocks[RASPDIF_BUFFER_COUNT - 1].next_control_block == &b_control->control_blocks[0]);
+  assert(v_control->control_blocks[RASPDIF_BUFFER_COUNT - 1].next_control_block == PTR32_CAST(&b_control->control_blocks[0]));
 }
 
 /**
   @brief  Initialize hardware for SPDIF generation. Include DMA, Clock, PCM and GPIO config
 
-  @param  dma_channel DMA channel to use for transfering buffers to PCM
+  @param  dma_channel DMA channel to use for transferring buffers to PCM
   @param  sample_rate_hz Audio sample rate in Hertz for clock configuration
   @retval none
 */
@@ -171,14 +171,14 @@ static void raspdif_init(dma_channel_t dma_channel, double sample_rate_hz)
 
   // Allocate buffers and control blocks in physical memory
   memory_physical_t memory = memory_allocate_physical(sizeof(raspdif_control_t));
-  if (memory.address == NULL)
+  if (memory.address == PTR32_NULL)
     LOGF(TAG, "Failed to allocate physical memory.");
 
   // Save reference to physical memory handle
   raspdif.memory = memory;
 
   // Map the physical memory into our address space
-  uint8_t* bus_base = (uint8_t*)memory.address;
+  uint8_t* bus_base = (uint8_t*)(uintptr_t)memory.address;
   uint8_t* physical_base = bus_base - bcm_host_get_sdram_address();
   uint8_t* virtual_base = (uint8_t*)memory_map_physical((off_t)physical_base, sizeof(raspdif_control_t));
   if (virtual_base == NULL)
@@ -447,6 +447,10 @@ int main(int argc, char* argv[])
   // Increase logging level to debug if requested
   if (arguments.verbose)
     log_set_level(log_level_debug);
+
+#ifdef TARGET_64BIT
+  LOGW(TAG, "64 bit support is experimental. Please report any issues.");
+#endif
 
   // Initialize hardware and buffers
   dma_channel_t dma_channel = bcm_host_is_model_pi4() ? dma_channel_5 : dma_channel_13;

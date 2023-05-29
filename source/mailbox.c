@@ -81,9 +81,9 @@ int32_t mailbox_allocate_memory(uint32_t size, uint32_t alignment, uint32_t flag
   @brief  Lock a pre-allocated block of memory for use
 
   @param  handle Handle from allocation command
-  @retval void* - Bus address of memory block. NULL if error
+  @retval uintptr32_t - Bus address of memory block. NULL if error
 */
-void* mailbox_lock_memory(uint32_t handle)
+uintptr32_t mailbox_lock_memory(uint32_t handle)
 {
   mailbox_lock_memory_request_t request;
   memset(&request, 0, sizeof(mailbox_lock_memory_request_t));
@@ -100,17 +100,17 @@ void* mailbox_lock_memory(uint32_t handle)
   request.trailer.end = 0;
 
   if (mailbox_send(&request) < 0)
-    return NULL;
+    return PTR32_NULL;
 
   mailbox_lock_memory_response_t* response = (mailbox_lock_memory_response_t*)&request;
 
   if ((response->header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
-    return NULL;
+    return PTR32_NULL;
 
   if ((response->tag.header.code & MAILBOX_CODE_SUCCESS) != MAILBOX_CODE_SUCCESS)
-    return NULL;
+    return PTR32_NULL;
 
-  return (void*)response->tag.bus_address;
+  return (uintptr32_t)response->tag.bus_address;
 }
 
 /**

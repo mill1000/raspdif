@@ -189,24 +189,24 @@ typedef struct dma_control_block_t dma_control_block_t;
 struct dma_control_block_t
 {
   dma_transfer_information_t transfer_information; // TI
-  void* source_address;                            // SOURCE_AD
-  void* destination_address;                       // DEST_AD
+  uint32_t source_address;                         // SOURCE_AD
+  uint32_t destination_address;                    // DEST_AD
   dma_transfer_length_t transfer_length;           // TXFR_LEN
   dma_stride_t stride;                             // STRIDE
-  dma_control_block_t* next_control_block;         // NEXTCONBK
+  uint32_t next_control_block;                     // NEXTCONBK
   uint32_t _reserved[2];
 };
 
 typedef struct bcm283x_dma_channel_t
 {
   volatile dma_control_status_t CS;
-  volatile dma_control_block_t* CONBLK_AD;
+  volatile uint32_t CONBLK_AD;
   volatile dma_transfer_information_t TI;
   volatile uint32_t SOURCE_AD;
   volatile uint32_t DEST_AD;
   volatile dma_transfer_length_t TXFR_LEN;
   volatile dma_stride_t STRIDE;
-  volatile dma_control_block_t* NEXTCONBK;
+  volatile uint32_t NEXTCONBK;
   volatile dma_debug_t DEBUG;
 } bcm283x_dma_channel_t;
 
