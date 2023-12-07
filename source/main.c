@@ -384,7 +384,7 @@ static void raspdif_fill_buffers(uint8_t buffer_index, spdif_block_t* block, ras
 */
 static void signal_handler(int32_t signal)
 {
-  LOGW(TAG, "Received signal %s (%d).", sys_siglist[signal], signal);
+  LOGW(TAG, "Received signal %s (%d).", strsignal(signal), signal);
 
   raspdif_shutdown();
 
