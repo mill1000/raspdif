@@ -34,6 +34,7 @@ typedef struct raspdif_arguments_t
   const char* file;
   bool verbose;
   bool keep_alive;
+  bool pcm_disable;
   double sample_rate;
   raspdif_format_t format;
 } raspdif_arguments_t;
@@ -45,6 +46,7 @@ static struct argp_option options[] = {
   {"rate", 'r', "RATE", 0, "Set audio sample rate. Default: 44.1 kHz"},
   {"format", 'f', "FORMAT", 0, "Set audio sample format to s16le or s24le. Default: s16le"},
   {"no-keep-alive", 'k', 0, 0, "Don't send silent noise during underrun."},
+  {"disable-pcm-on-idle", 'd', 0, 0, "Didable PCM during underrun."},
   {"verbose", 'v', 0, 0, "Enable debug messages."},
   {0},
 };
@@ -89,6 +91,10 @@ static error_t parse_opt(int key, char* arg, struct argp_state* state)
 
     case 'k':
       arguments->keep_alive = false;
+      break;
+
+    case 'd':
+      arguments->pcm_disable = true;
       break;
 
     default:
@@ -526,15 +532,21 @@ int main(int argc, char* argv[])
       // Zero fill the sample buffers for silence
       raspdif_fill_buffers(buffer_index, &block, arguments.format, arguments.sample_rate, arguments.keep_alive);
 
-      bcm283x_pcm_enable(false, false);
-
+      if(arguments.pcm_disable)
+      {
+        bcm283x_pcm_enable(false, false);
+      }
+      
       // Wait for file to be readable
       struct pollfd poll_list;
       poll_list.fd = fileno(file);
       poll_list.events = POLLIN;
       poll(&poll_list, 1, -1);
 
-      bcm283x_pcm_enable(true, false);
+      if(arguments.pcm_disable)
+      {
+        bcm283x_pcm_enable(true, false);
+      }
 
       // Resume read loop
       LOGD(TAG, "Data available.");
