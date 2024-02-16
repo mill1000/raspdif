@@ -46,7 +46,7 @@ static struct argp_option options[] = {
   {"rate", 'r', "RATE", 0, "Set audio sample rate. Default: 44.1 kHz"},
   {"format", 'f', "FORMAT", 0, "Set audio sample format to s16le or s24le. Default: s16le"},
   {"no-keep-alive", 'k', 0, 0, "Don't send silent noise during underrun."},
-  {"disable-pcm-on-idle", 'd', 0, 0, "Didable PCM during underrun."},
+  {"disable-pcm-on-idle", 'd', 0, 0, "Disable PCM during underrun."},
   {"verbose", 'v', 0, 0, "Enable debug messages."},
   {0},
 };
@@ -535,6 +535,7 @@ int main(int argc, char* argv[])
       if(arguments.pcm_disable)
       {
         bcm283x_pcm_enable(false, false);
+        LOGD(TAG, "PCM disabled.");
       }
       
       // Wait for file to be readable
@@ -546,6 +547,7 @@ int main(int argc, char* argv[])
       if(arguments.pcm_disable)
       {
         bcm283x_pcm_enable(true, false);
+        LOGD(TAG, "PCM enabled.");
       }
 
       // Resume read loop
