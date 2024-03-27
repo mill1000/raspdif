@@ -102,6 +102,7 @@ Check `raspdif --help` for additional optional arguments to tweak behavior.
 ```
 Usage: raspdif [OPTION...]
 
+  -d, --disable-pcm-on-idle  Disable PCM during underrun.
   -f, --format=FORMAT        Set audio sample format to s16le or s24le.
                              Default: s16le
   -i, --input=INPUT_FILE     Read data from file instead of stdin.
