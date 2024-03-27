@@ -532,19 +532,19 @@ int main(int argc, char* argv[])
       // Zero fill the sample buffers for silence
       raspdif_fill_buffers(buffer_index, &block, arguments.format, arguments.sample_rate, arguments.keep_alive);
 
-      if(arguments.pcm_disable)
+      if (arguments.pcm_disable)
       {
         bcm283x_pcm_enable(false, false);
         LOGD(TAG, "PCM disabled.");
       }
-      
+
       // Wait for file to be readable
       struct pollfd poll_list;
       poll_list.fd = fileno(file);
       poll_list.events = POLLIN;
       poll(&poll_list, 1, -1);
 
-      if(arguments.pcm_disable)
+      if (arguments.pcm_disable)
       {
         bcm283x_pcm_enable(true, false);
         LOGD(TAG, "PCM enabled.");
