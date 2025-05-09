@@ -37,10 +37,14 @@ static void bcm283x_pcm_sync()
   // We don't necessarily know the value of SYNC so toggle it to ensure at least
   // 2 PCM clocks of delay
   pcm->CS_A.SYNC = 0;
-  while (pcm->CS_A.SYNC != 0) {}
+  while (pcm->CS_A.SYNC != 0)
+  {
+  }
 
   pcm->CS_A.SYNC = 1;
-  while (pcm->CS_A.SYNC != 1) {}
+  while (pcm->CS_A.SYNC != 1)
+  {
+  }
 
   RMB();
 }

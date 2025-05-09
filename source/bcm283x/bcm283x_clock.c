@@ -99,7 +99,9 @@ void bcm283x_clock_wait_busy(clock_peripheral_t peripheral)
 
   assert(clock != NULL);
 
-  while (clock->CTL.BUSY) {}
+  while (clock->CTL.BUSY)
+  {
+  }
 
   RMB();
 }
@@ -131,7 +133,9 @@ void bcm283x_clock_configure(clock_peripheral_t peripheral, const clock_configur
   clock->CTL = control;
 
   // Wait for idle
-  while (clock->CTL.BUSY) {}
+  while (clock->CTL.BUSY)
+  {
+  }
   RMB();
 
   // Re configure source, mash and flip bits
