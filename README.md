@@ -21,6 +21,10 @@ Install necessary packages
 ```
 sudo apt-get install build-essential clang git
 ```
+Debian 12 (Bookworm) requires this additional depenency.
+```
+sudo apt-get install libraspberrypi-dev
+```
 
 Just run make. No configuration right now.
 ```
