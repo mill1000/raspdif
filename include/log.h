@@ -28,7 +28,7 @@ typedef enum
 
 #define LOG_FORMAT(COLOR, LETTER, FORMAT) \
   LOG_COLOR(COLOR)                        \
-#LETTER ": %s: " FORMAT LOG_RESET_COLOR "\n"
+  #LETTER ": %s: " FORMAT LOG_RESET_COLOR "\n"
 
 #define _LOG(LEVEL, FORMAT, ...)             \
   do {                                       \

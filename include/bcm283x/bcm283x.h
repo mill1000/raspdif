@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 // Enable GPIOs 32 - 54
-//#define BCM283X_EXTENDED_GPIO
+// #define BCM283X_EXTENDED_GPIO
 
 #define BCM283X_BUS_PERIPHERAL_BASE (0x7E000000)
 
