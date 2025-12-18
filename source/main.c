@@ -1,5 +1,4 @@
 #include <argp.h>
-#include <bcm_host.h>
 #include <fcntl.h>
 #include <math.h>
 #include <poll.h>
@@ -185,7 +184,7 @@ static void raspdif_init(dma_channel_t dma_channel, double sample_rate_hz)
 
   // Map the physical memory into our address space
   uint8_t* bus_base = (uint8_t*)(uintptr_t)memory.address;
-  uint8_t* physical_base = bus_base - bcm_host_get_sdram_address();
+  uint8_t* physical_base = bus_base - bcm283x_get_sdram_address();
   uint8_t* virtual_base = (uint8_t*)memory_map_physical((off_t)physical_base, sizeof(raspdif_control_t));
   if (virtual_base == NULL)
   {
@@ -218,7 +217,7 @@ static void raspdif_init(dma_channel_t dma_channel, double sample_rate_hz)
   double spdif_clock = sample_rate_hz * 64.0 * 2.0;
   LOGD(TAG, "Calculated SPDIF clock of %g Hz for sample rate of %g Hz.", spdif_clock, sample_rate_hz);
 
-  double pll_freq_hz = bcm_host_is_model_pi4() ? 750e6 : 500e6;
+  double pll_freq_hz = bcm283x_is_model_pi4() ? 750e6 : 500e6;
   double divisor = (pll_freq_hz / spdif_clock);
 
   double divi = 0;
@@ -459,7 +458,7 @@ int main(int argc, char* argv[])
 #endif
 
   // Initialize hardware and buffers
-  dma_channel_t dma_channel = bcm_host_is_model_pi4() ? dma_channel_5 : dma_channel_13;
+  dma_channel_t dma_channel = bcm283x_is_model_pi4() ? dma_channel_5 : dma_channel_13;
   raspdif_init(dma_channel, arguments.sample_rate);
 
   // Allocate storage for a SPDIF block
