@@ -96,9 +96,9 @@ static uintptr_t bcm283x_get_dt_ranges(const char* filename, off_t offset)
 */
 uintptr_t bcm283x_get_peripheral_address(void)
 {
-  uintptr_t address = get_dt_ranges("/proc/device-tree/soc/ranges", 4);
+  uintptr_t address = bcm283x_get_dt_ranges("/proc/device-tree/soc/ranges", 4);
   if (address == 0)
-    address = get_dt_ranges("/proc/device-tree/soc/ranges", 8);
+    address = bcm283x_get_dt_ranges("/proc/device-tree/soc/ranges", 8);
   return address == UINTPTR_MAX ? 0x20000000 : address;
 }
 
@@ -110,8 +110,8 @@ uintptr_t bcm283x_get_peripheral_address(void)
 */
 uintptr_t bcm283x_get_peripheral_size(void)
 {
-  uintptr_t address = get_dt_ranges("/proc/device-tree/soc/ranges", 4);
-  address = get_dt_ranges("/proc/device-tree/soc/ranges", (address == 0) ? 12 : 8);
+  uintptr_t address = bcm283x_get_dt_ranges("/proc/device-tree/soc/ranges", 4);
+  address = bcm283x_get_dt_ranges("/proc/device-tree/soc/ranges", (address == 0) ? 12 : 8);
   return address == UINTPTR_MAX ? 0x01000000 : address;
 }
 
@@ -123,7 +123,7 @@ uintptr_t bcm283x_get_peripheral_size(void)
 */
 uintptr_t bcm283x_get_sdram_address(void)
 {
-  uintptr_t address = get_dt_ranges("/proc/device-tree/axi/vc_mem/reg", 8);
+  uintptr_t address = bcm283x_get_dt_ranges("/proc/device-tree/axi/vc_mem/reg", 8);
   return address == UINTPTR_MAX ? 0x40000000 : address;
 }
 
