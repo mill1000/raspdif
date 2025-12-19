@@ -16,7 +16,7 @@ TARGET = $(BUILD_DIR)/$(TARGET_NAME)
 INC_DIRS := $(shell find $(INC_BASE) -type d) /opt/vc/include
 INC_FLAGS := $(addprefix -I ,$(INC_DIRS))
 
-LDFLAGS := -L /opt/vc/lib -lm -lvcos -lpthread -lstdc++
+LDFLAGS := -L /opt/vc/lib -lm -lpthread -lstdc++
 CPPFLAGS ?= $(INC_FLAGS) -MMD 
 CFLAGS ?= -Wall -Wno-missing-braces
 CC = clang
