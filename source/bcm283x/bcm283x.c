@@ -172,7 +172,7 @@ static uint32_t bcm283x_get_revision_code()
     return revision_num;
 
   uint32_t num = UINT32_MAX;
-  if (read_string_from_file("/proc/cpuinfo", "Revision : %x", &num))
+  if (bcm283x_get_string_from_file("/proc/cpuinfo", "Revision : %x", &num))
     revision_num = num;
 
   return revision_num;
