@@ -30,7 +30,7 @@ void* memory_map_physical(off_t offset, size_t length)
   void* virtual = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, file, offset);
   if (virtual == MAP_FAILED)
   {
-    LOGF(TAG, "Failed to map physical address 0x%X of length %d. Error: %s", offset, length, strerror(errno));
+    LOGF(TAG, "Failed to map physical address 0x%lX of length %d. Error: %s", offset, length, strerror(errno));
     return NULL;
   }
 
@@ -38,7 +38,7 @@ void* memory_map_physical(off_t offset, size_t length)
   if (result == -1)
     LOGE(TAG, "Failed to close /dev/mem. Error: %s", strerror(errno));
 
-  LOGD(TAG, "Mapped physical address 0x%X to virtual address 0x%X", offset, virtual);
+  LOGD(TAG, "Mapped physical address 0x%lX to virtual address 0x%lX", offset, virtual);
 
   return virtual;
 }
@@ -59,7 +59,7 @@ void* memory_allocate_virtual(size_t length)
     return NULL;
   }
 
-  LOGD(TAG, "Allocated virtual memory at 0x%X of length %d.", virtual, length);
+  LOGD(TAG, "Allocated virtual memory at 0x%lX of length %d.", virtual, length);
 
   return virtual;
 }
@@ -93,7 +93,7 @@ memory_physical_t memory_allocate_physical(size_t length)
     return memory;
   }
 
-  LOGD(TAG, "Allocated memory at 0x%X of length %d.", memory.address, length);
+  LOGD(TAG, "Allocated memory at 0x%lX of length %d.", memory.address, length);
 
   return memory;
 }
