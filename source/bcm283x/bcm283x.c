@@ -64,20 +64,20 @@ void bcm283x_delay_microseconds(uint32_t microseconds)
 
   @param  filename Device tree node
   @param  offset Offset in node to read
-  @retval uintptr_t
+  @retval uint32_t
 */
-static uintptr_t bcm283x_get_dt_ranges(const char* filename, off_t offset)
+static uint32_t bcm283x_get_dt_ranges(const char* filename, off_t offset)
 {
   // Open node
   FILE* fp = fopen(filename, "rb");
   if (fp == NULL)
-    return UINTPTR_MAX;
+    return UINT32_MAX;
 
   // Seek to offset
   fseek(fp, offset, SEEK_SET);
 
   // Read range from node
-  uintptr_t address = UINTPTR_MAX;
+  uint32_t address = UINT32_MAX;
   unsigned char buffer[4];
   if (fread(buffer, 1, sizeof(buffer), fp) == sizeof(buffer))
     address = buffer[0] << 24 | buffer[1] << 16 | buffer[2] << 8 | buffer[3] << 0;
@@ -92,39 +92,39 @@ static uintptr_t bcm283x_get_dt_ranges(const char* filename, off_t offset)
   @brief  Get the peripheral base address from the device tree
 
   @param  none
-  @retval uintptr_t
+  @retval uint32_t
 */
-uintptr_t bcm283x_get_peripheral_address(void)
+uint32_t bcm283x_get_peripheral_address(void)
 {
-  uintptr_t address = bcm283x_get_dt_ranges("/proc/device-tree/soc/ranges", 4);
+  uint32_t address = bcm283x_get_dt_ranges("/proc/device-tree/soc/ranges", 4);
   if (address == 0)
     address = bcm283x_get_dt_ranges("/proc/device-tree/soc/ranges", 8);
-  return address == UINTPTR_MAX ? 0x20000000 : address;
+  return address == UINT32_MAX ? 0x20000000 : address;
 }
 
 /**
   @brief  Get the peripheral address size from the device tree
 
   @param  none
-  @retval uintptr_t
+  @retval uint32_t
 */
-uintptr_t bcm283x_get_peripheral_size(void)
+uint32_t bcm283x_get_peripheral_size(void)
 {
-  uintptr_t address = bcm283x_get_dt_ranges("/proc/device-tree/soc/ranges", 4);
+  uint32_t address = bcm283x_get_dt_ranges("/proc/device-tree/soc/ranges", 4);
   address = bcm283x_get_dt_ranges("/proc/device-tree/soc/ranges", (address == 0) ? 12 : 8);
-  return address == UINTPTR_MAX ? 0x01000000 : address;
+  return address == UINT32_MAX ? 0x01000000 : address;
 }
 
 /**
   @brief  Get the physical address of the SDRAM from the device tree
 
   @param  none
-  @retval uintptr_t
+  @retval uint32_t
 */
-uintptr_t bcm283x_get_sdram_address(void)
+uint32_t bcm283x_get_sdram_address(void)
 {
-  uintptr_t address = bcm283x_get_dt_ranges("/proc/device-tree/axi/vc_mem/reg", 8);
-  return address == UINTPTR_MAX ? 0x40000000 : address;
+  uint32_t address = bcm283x_get_dt_ranges("/proc/device-tree/axi/vc_mem/reg", 8);
+  return address == UINT32_MAX ? 0x40000000 : address;
 }
 
 /**

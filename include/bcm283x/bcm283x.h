@@ -25,9 +25,9 @@
 
 void bcm283x_init(void);
 void bcm283x_delay_microseconds(uint32_t microseconds);
-uintptr_t bcm283x_get_peripheral_address(void);
-uintptr_t bcm283x_get_peripheral_size(void);
-uintptr_t bcm283x_get_sdram_address(void);
+uint32_t bcm283x_get_peripheral_address(void);
+uint32_t bcm283x_get_peripheral_size(void);
+uint32_t bcm283x_get_sdram_address(void);
 bool bcm283x_is_model_pi4(void);
 
 #include "bcm283x_clock.h"
