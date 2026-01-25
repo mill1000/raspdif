@@ -9,6 +9,7 @@ ExecStart=/usr/local/bin/raspdif --input /tmp/spdif_fifo
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=raspdif
+PrivateTmp=no
 
 [Install]
 WantedBy=multi-user.target
