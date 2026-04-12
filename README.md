@@ -14,6 +14,7 @@ raspdif accepts 16 or 24 bit PCM samples from stdin, a file, or a FIFO (named pi
 
 ## Building
 ### Prerequisites
+* Raspberry Pi 1, 2, 3 or 4. The Raspberry Pi 5 has a different SOC architecture and is not currently supported.
 * clang - Tested against `clang version 3.8.1-24+rpi1` and `clang version 11.0.1-2+rpi1`.
 * 32-bit Raspberry Pi OS (64-bit support is experimental).
 
