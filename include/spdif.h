@@ -82,5 +82,6 @@ typedef struct spdif_block_t
 
 uint64_t spdif_build_subframe(spdif_subframe_t* subframe, spdif_preamble_t preamble, spdif_sample_depth_t depth, int32_t sample);
 void spdif_populate_channel_status(spdif_block_t* block);
+void spdif_set_non_audio(spdif_block_t* block, bool non_audio);
 
 #endif

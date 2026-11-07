@@ -312,6 +312,54 @@ static bool raspdif_buffer_samples(raspdif_buffer_t* buffer, spdif_block_t* bloc
   return sample_count % RASPDIF_BUFFER_SIZE == 0;
 }
 
+// IEC 61937 burst preamble: Pa in the first, Pb in the second sub-frame
+#define IEC61937_PA 0xF872
+#define IEC61937_PB 0x4E1F
+// Back to PCM after this many frames without a burst. AC3 repeats every 1536
+// frames, DTS every 512..2048; 8192 frames are ~170 ms at 48 kHz.
+#define IEC61937_TIMEOUT_FRAMES 8192
+
+/**
+  @brief  Follow the input and flag IEC 61937 data (AC3/DTS passthrough) as non-audio
+
+          A player in passthrough mode (e.g. Kodi) packs the bitstream into
+          16 bit stereo "PCM". The receiver must see channel status bit 1 set,
+          otherwise it may play the data as noise. Only 16 bit input can carry it.
+
+  @param  block SPDIF block whose channel status is updated
+  @param  format Input sample format
+  @param  sample_a First sub-frame sample
+  @param  sample_b Second sub-frame sample
+  @retval none
+*/
+static void raspdif_detect_iec61937(spdif_block_t* block, raspdif_format_t format, int32_t sample_a, int32_t sample_b)
+{
+  static bool non_audio = false;
+  static uint32_t frames_since_burst = 0;
+
+  if (format != raspdif_format_s16le)
+    return;
+
+  if ((uint16_t)sample_a == IEC61937_PA && (uint16_t)sample_b == IEC61937_PB)
+  {
+    frames_since_burst = 0;
+    if (!non_audio)
+    {
+      non_audio = true;
+      spdif_set_non_audio(block, true);
+      LOGI(TAG, "IEC 61937 data detected, signalling non-audio.");
+    }
+    return;
+  }
+
+  if (non_audio && ++frames_since_burst > IEC61937_TIMEOUT_FRAMES)
+  {
+    non_audio = false;
+    spdif_set_non_audio(block, false);
+    LOGI(TAG, "No IEC 61937 bursts for %d frames, back to PCM.", IEC61937_TIMEOUT_FRAMES);
+  }
+}
+
 /**
   @brief  Parse and sign extend the sample of the specified format
 
@@ -493,6 +541,7 @@ int main(int argc, char* argv[])
     // Parse sample buffer in proper format
     int32_t sample_a = raspdif_parse_sample(arguments.format, &samples[0]);
     int32_t sample_b = raspdif_parse_sample(arguments.format, &samples[sample_size]);
+    raspdif_detect_iec61937(&block, arguments.format, sample_a, sample_b);
 
     raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
     bool full = raspdif_buffer_samples(buffer, &block, arguments.format, sample_a, sample_b);
@@ -557,6 +606,7 @@ int main(int argc, char* argv[])
     // Parse sample buffer in proper format
     int32_t sample_a = raspdif_parse_sample(arguments.format, &samples[0]);
     int32_t sample_b = raspdif_parse_sample(arguments.format, &samples[sample_size]);
+    raspdif_detect_iec61937(&block, arguments.format, sample_a, sample_b);
 
     raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
     bool full = raspdif_buffer_samples(buffer, &block, arguments.format, sample_a, sample_b);
