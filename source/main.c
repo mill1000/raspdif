@@ -18,6 +18,7 @@
 #include "log.h"
 #include "memory.h"
 #include "raspdif.h"
+#include "raspdif_shm.h"
 #include "spdif.h"
 #include "utils.h"
 
@@ -43,6 +44,7 @@ typedef struct raspdif_arguments_t
   bool pcm_disable;
   int dma_channel; // -1 = model default
   int pipe_size;   // 0 = leave the FIFO at its kernel default (64 KiB)
+  bool shm;        // read the ALSA plugin's shared-memory ring
   uint32_t lead;   // buffers queued ahead of the DMA, 0 = default
   int rt_priority; // SCHED_FIFO priority, 0 = normal scheduler
   double sample_rate;
@@ -59,6 +61,7 @@ static struct argp_option options[] = {
   {"disable-pcm-on-idle", 'd', 0, 0, "Stop the PCM transmitter after one second without input."},
   {"dma-channel", 'c', "CHANNEL", 0, "DMA channel to use. Default: 10 on Pi 4, 13 otherwise"},
   {"pipe-size", 'p', "BYTES", 0, "FIFO input: shrink the pipe to BYTES to cut latency (kernel rounds up to a power-of-two number of pages)."},
+  {"shm", 's', 0, 0, "Read from the ALSA plugin's shared-memory ring (" RASPDIF_SHM_PATH ") instead of a file or stdin."},
   {"lead", 'l', "BUFFERS", 0, "Buffers kept queued ahead of the DMA (1 to buffer count minus 2); sets the output latency."},
   {"rt-priority", 't', "PRIO", 0, "SCHED_FIFO priority, 0 for the normal scheduler. Default: 50"},
   {"verbose", 'v', 0, 0, "Enable debug messages."},
@@ -137,6 +140,10 @@ static error_t parse_opt(int key, char* arg, struct argp_state* state)
       break;
     }
 
+    case 's':
+      arguments->shm = true;
+      break;
+
     case 'l':
     {
       char* end = NULL;
@@ -183,7 +190,7 @@ void raspdif_shutdown()
   bcm283x_clock_enable(clock_peripheral_pcm, false);
   bcm283x_dma_enable(raspdif.dma_channel, false);
 
-  // Close the input
+  // Tell an ALSA plugin we are gone (clears the daemon pid in shared memory)
   input_close(raspdif.input);
   raspdif.input = NULL;
 
@@ -235,6 +242,10 @@ static void raspdif_generate_dma_control_blocks(raspdif_control_t* b_control, ra
 
 /**
   @brief  Configure and start the PCM clock for a sample rate
+
+          Also used to change the rate while transmitting: the clock manager
+          stops the generator, waits until it is idle and restarts it with the
+          new divisor. The DMA simply waits for DREQ meanwhile.
 
   @param  sample_rate_hz Audio sample rate in Hertz
   @retval none
@@ -723,9 +734,17 @@ int main(int argc, char* argv[])
   // Populate each frame with channel status data
   spdif_populate_channel_status(&block);
 
-  // Open the input: a file/FIFO or stdin
+  // Open the input: the ALSA plugin's shared-memory ring, a file/FIFO or stdin
   size_t sample_size = (arguments.format == raspdif_format_s24le) ? 3 : sizeof(int16_t);
-  input_t* input = input_open_fd(arguments.file, 2 * sample_size, 2 * RASPDIF_BUFFER_SIZE);
+  input_t* input = NULL;
+  if (arguments.shm)
+  {
+    if (arguments.format != raspdif_format_s16le)
+      LOGF(TAG, "--shm carries s16le only.");
+    input = input_open_shm((uint32_t)arguments.sample_rate);
+  }
+  else
+    input = input_open_fd(arguments.file, 2 * sample_size, 2 * RASPDIF_BUFFER_SIZE);
 
   if (input == NULL)
     LOGF(TAG, "Unable to open input.");
@@ -772,6 +791,7 @@ int main(int argc, char* argv[])
   uint32_t late = 0;
   bool streaming = false;
   uint8_t frames[RASPDIF_BUFFER_SIZE * 2 * sizeof(int32_t)];
+  double rate = arguments.sample_rate;
   long tick_ns = (long)(1e9 * buffer_s / 2);
   struct timespec wake;
   clock_gettime(CLOCK_MONOTONIC, &wake);
@@ -783,6 +803,18 @@ int main(int argc, char* argv[])
 
   while (true)
   {
+    // The ALSA plugin asks for another sample rate: retune the clock
+    uint32_t wanted = input_requested_rate(input);
+    if (wanted != 0 && wanted != (uint32_t)rate && wanted >= 32000 && wanted <= 96000)
+    {
+      LOGI(TAG, "Switching to %u Hz.", wanted);
+      raspdif_set_clock(wanted);
+      rate = wanted;
+      buffer_s = RASPDIF_BUFFER_SIZE / rate;
+      tick_ns = (long)(1e9 * buffer_s / 2);
+      input_confirm_rate(input, wanted);
+    }
+
     uint32_t head = raspdif_dma_index();
     uint32_t ahead = (next + RASPDIF_BUFFER_COUNT - head) % RASPDIF_BUFFER_COUNT;
     if (ahead == 0)
@@ -794,6 +826,10 @@ int main(int argc, char* argv[])
       next = (head + 1) % RASPDIF_BUFFER_COUNT;
       ahead = 1;
     }
+
+    // Taken from the input but not yet on the wire: the queued buffers plus,
+    // on average, half of the one being transmitted.
+    input_publish(input, (ahead - 1) * RASPDIF_BUFFER_SIZE + RASPDIF_BUFFER_SIZE / 2);
 
     size_t available = input_available(input);
     bool eof = input_eof(input);
