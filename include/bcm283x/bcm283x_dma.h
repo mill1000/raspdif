@@ -251,5 +251,6 @@ void bcm283x_dma_reset(dma_channel_t channel);
 void bcm283x_dma_set_control_block(dma_channel_t channel, const dma_control_block_t* control);
 const dma_control_block_t* bcm283x_dma_get_control_block(dma_channel_t channel);
 void bcm283x_dma_enable(dma_channel_t channel, bool enable);
+void bcm283x_dma_set_priority(dma_channel_t channel, uint8_t priority, uint8_t panic_priority);
 bool bcm283x_dma_active(dma_channel_t channel);
 #endif

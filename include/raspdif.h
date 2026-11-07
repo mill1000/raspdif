@@ -7,8 +7,27 @@
 
 #define RASPDIF_DEFAULT_SAMPLE_RATE 44.1e3 // 44.1 kHz
 #define RASPDIF_DEFAULT_FORMAT      raspdif_format_s16le
-#define RASPDIF_BUFFER_COUNT        3    // Number of entries in the circular buffer
-#define RASPDIF_BUFFER_SIZE         2048 // Number of samples in each buffer entry. 128 (coded) bits per sample
+// The ring has COUNT buffers of SIZE frames; the lead (buffers kept queued
+// ahead of the DMA) sets the output latency, about lead * SIZE / sample rate.
+// All three can be overridden at build time via CFLAGS (not CPPFLAGS, which
+// would replace the include paths), e.g.
+//   make CFLAGS="-Wall -Wno-missing-braces -DRASPDIF_BUFFER_SIZE=64 -DRASPDIF_BUFFER_COUNT=32 -DRASPDIF_DEFAULT_LEAD=4"
+#ifndef RASPDIF_BUFFER_COUNT
+#define RASPDIF_BUFFER_COUNT 3 // Number of entries in the circular buffer
+#endif
+#ifndef RASPDIF_BUFFER_SIZE
+#define RASPDIF_BUFFER_SIZE 2048 // Number of samples in each buffer entry. 128 (coded) bits per sample
+#endif
+// Buffers kept queued ahead of the DMA unless --lead says otherwise. With many
+// small buffers (e.g. COUNT 32, SIZE 64) a lead of 4 gives ~4-5 ms.
+// The lead may be at most COUNT - 2: the buffer being transmitted and the one
+// the writer fills next must never be the same.
+#ifndef RASPDIF_DEFAULT_LEAD
+#define RASPDIF_DEFAULT_LEAD (RASPDIF_BUFFER_COUNT - 2)
+#endif
+static_assert(RASPDIF_BUFFER_COUNT >= 3, "The ring needs at least 3 buffers.");
+static_assert(RASPDIF_DEFAULT_LEAD >= 1 && RASPDIF_DEFAULT_LEAD <= RASPDIF_BUFFER_COUNT - 2,
+              "RASPDIF_DEFAULT_LEAD must be 1..RASPDIF_BUFFER_COUNT-2.");
 
 typedef enum raspdif_format_t
 {

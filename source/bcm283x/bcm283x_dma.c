@@ -111,6 +111,28 @@ void bcm283x_dma_enable(dma_channel_t channel, bool enable)
 }
 
 /**
+  @brief  Set the AXI bus priorities of the selected DMA channel
+
+          Call while the channel is inactive. A Lite channel at priority 0 can
+          be starved under GPU/HDMI bus load; panic priority applies once the
+          peripheral raises its panic DREQ (PCM TX FIFO below the panic level).
+
+  @param  channel DMA channel number
+  @param  priority Normal AXI priority 0..15
+  @param  panic_priority AXI priority while the peripheral panics 0..15
+  @retval void
+*/
+void bcm283x_dma_set_priority(dma_channel_t channel, uint8_t priority, uint8_t panic_priority)
+{
+  bcm283x_dma_channel_t* handle = bcm283x_dma_get_channel(channel);
+
+  WMB();
+
+  handle->CS.PRIORITY = priority & 0xF;
+  handle->CS.PANIC_PRIORITY = panic_priority & 0xF;
+}
+
+/**
   @brief  Test if the select DMA channel is Active/busy
 
   @param  channel DMA channel number

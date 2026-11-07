@@ -1,14 +1,20 @@
+#define _GNU_SOURCE // F_SETPIPE_SZ
 #include <argp.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <math.h>
-#include <poll.h>
+#include <sched.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <time.h>
 
 #include "bcm283x.h"
 #include "git_version.h"
+#include "input.h"
 #include "log.h"
 #include "memory.h"
 #include "raspdif.h"
@@ -21,6 +27,7 @@ static struct
 {
   memory_physical_t memory;
   dma_channel_t dma_channel;
+  input_t* input; // closed on shutdown, also from the signal handler
   struct
   {
     raspdif_control_t* bus;
@@ -35,6 +42,9 @@ typedef struct raspdif_arguments_t
   bool keep_alive;
   bool pcm_disable;
   int dma_channel; // -1 = model default
+  int pipe_size;   // 0 = leave the FIFO at its kernel default (64 KiB)
+  uint32_t lead;   // buffers queued ahead of the DMA, 0 = default
+  int rt_priority; // SCHED_FIFO priority, 0 = normal scheduler
   double sample_rate;
   raspdif_format_t format;
 } raspdif_arguments_t;
@@ -46,8 +56,11 @@ static struct argp_option options[] = {
   {"rate", 'r', "RATE", 0, "Set audio sample rate. Default: 44.1 kHz"},
   {"format", 'f', "FORMAT", 0, "Set audio sample format to s16le or s24le. Default: s16le"},
   {"no-keep-alive", 'k', 0, 0, "Don't send silent noise during underrun."},
-  {"disable-pcm-on-idle", 'd', 0, 0, "Disable PCM during underrun."},
+  {"disable-pcm-on-idle", 'd', 0, 0, "Stop the PCM transmitter after one second without input."},
   {"dma-channel", 'c', "CHANNEL", 0, "DMA channel to use. Default: 10 on Pi 4, 13 otherwise"},
+  {"pipe-size", 'p', "BYTES", 0, "FIFO input: shrink the pipe to BYTES to cut latency (kernel rounds up to a power-of-two number of pages)."},
+  {"lead", 'l', "BUFFERS", 0, "Buffers kept queued ahead of the DMA (1 to buffer count minus 2); sets the output latency."},
+  {"rt-priority", 't', "PRIO", 0, "SCHED_FIFO priority, 0 for the normal scheduler. Default: 50"},
   {"verbose", 'v', 0, 0, "Enable debug messages."},
   {0},
 };
@@ -111,6 +124,45 @@ static error_t parse_opt(int key, char* arg, struct argp_state* state)
       break;
     }
 
+    case 'p':
+    {
+      char* end = NULL;
+      long size = strtol(arg, &end, 10);
+      if (end == arg || *end != '\0' || size <= 0 || size > (1 << 20))
+      {
+        LOGF(TAG, "Invalid pipe size '%s'", arg);
+        return EINVAL;
+      }
+      arguments->pipe_size = (int)size;
+      break;
+    }
+
+    case 'l':
+    {
+      char* end = NULL;
+      long lead = strtol(arg, &end, 10);
+      if (end == arg || *end != '\0' || lead < 1 || lead > RASPDIF_BUFFER_COUNT - 2)
+      {
+        LOGF(TAG, "Invalid lead '%s', must be 1..%d", arg, RASPDIF_BUFFER_COUNT - 2);
+        return EINVAL;
+      }
+      arguments->lead = (uint32_t)lead;
+      break;
+    }
+
+    case 't':
+    {
+      char* end = NULL;
+      long prio = strtol(arg, &end, 10);
+      if (end == arg || *end != '\0' || prio < 0 || prio > 99)
+      {
+        LOGF(TAG, "Invalid real-time priority '%s', must be 0..99", arg);
+        return EINVAL;
+      }
+      arguments->rt_priority = (int)prio;
+      break;
+    }
+
     default:
       return ARGP_ERR_UNKNOWN;
   }
@@ -131,6 +183,10 @@ void raspdif_shutdown()
   bcm283x_clock_enable(clock_peripheral_pcm, false);
   bcm283x_dma_enable(raspdif.dma_channel, false);
 
+  // Close the input
+  input_close(raspdif.input);
+  raspdif.input = NULL;
+
   // Free allocated memory
   memory_release_physical(&raspdif.memory);
 }
@@ -148,7 +204,11 @@ static void raspdif_generate_dma_control_blocks(raspdif_control_t* b_control, ra
   bcm283x_pcm_t* b_pcm = (bcm283x_pcm_t*)(BCM283X_BUS_PERIPHERAL_BASE + PCM_BASE_OFFSET);
 
   // Zero-init all control blocks
-  memset((void*)v_control->control_blocks, 0, RASPDIF_BUFFER_COUNT * sizeof(dma_control_block_t));
+  // Not memset: the blocks live in uncached device memory, and glibc's aarch64
+  // memset uses DC ZVA for larger sizes, which faults there (SIGBUS from 1 KiB on).
+  volatile uint32_t* words = (volatile uint32_t*)v_control->control_blocks;
+  for (size_t w = 0; w < RASPDIF_BUFFER_COUNT * sizeof(dma_control_block_t) / sizeof(uint32_t); w++)
+    words[w] = 0;
 
   for (size_t i = 0; i < RASPDIF_BUFFER_COUNT; i++)
   {
@@ -171,6 +231,38 @@ static void raspdif_generate_dma_control_blocks(raspdif_control_t* b_control, ra
 
   // Check that blocks loop
   assert(v_control->control_blocks[RASPDIF_BUFFER_COUNT - 1].next_control_block == PTR32_CAST(&b_control->control_blocks[0]));
+}
+
+/**
+  @brief  Configure and start the PCM clock for a sample rate
+
+  @param  sample_rate_hz Audio sample rate in Hertz
+  @retval none
+*/
+static void raspdif_set_clock(double sample_rate_hz)
+{
+  // Calculate required PCM clock rate for sample rate
+  // 44.1 kHz * 64 bits * 2x (Manchester) -> 5.6448 MHz
+  // 500 MHz / 5.6448 = 88.57709750566893
+  double spdif_clock = sample_rate_hz * 64.0 * 2.0;
+  LOGD(TAG, "Calculated SPDIF clock of %g Hz for sample rate of %g Hz.", spdif_clock, sample_rate_hz);
+
+  double pll_freq_hz = bcm283x_is_model_pi4() ? 750e6 : 500e6;
+  double divisor = (pll_freq_hz / spdif_clock);
+
+  double divi = 0;
+  double divf = round(4096 * modf(divisor, &divi));
+  LOGD(TAG, "Calculated DIVI: %d, DIVF: %d.", (uint16_t)divi, (uint16_t)divf);
+
+  clock_configuration_t clock_config;
+  clock_config.source = clock_source_plld;       // 500 MHz (750 MHz on the Pi 4)
+  clock_config.mash = clock_mash_filter_1_stage; // MASH filters required for non-integer division
+  clock_config.invert = false;
+  clock_config.divi = divi;
+  clock_config.divf = divf;
+
+  bcm283x_clock_configure(clock_peripheral_pcm, &clock_config);
+  bcm283x_clock_enable(clock_peripheral_pcm, true);
 }
 
 /**
@@ -230,29 +322,9 @@ static void raspdif_init(dma_channel_t dma_channel, double sample_rate_hz)
   // Configure DMA channel to load PCM from the buffers
   bcm283x_dma_reset(raspdif.dma_channel);
   bcm283x_dma_set_control_block(raspdif.dma_channel, b_control->control_blocks);
+  bcm283x_dma_set_priority(raspdif.dma_channel, 8, 15);
 
-  // Calculate required PCM clock rate for sample rate
-  // 44.1 kHz * 64 bits * 2x (Manchester) -> 5.6448 MHz
-  // 500 MHz / 5.6448 = 88.57709750566893
-  double spdif_clock = sample_rate_hz * 64.0 * 2.0;
-  LOGD(TAG, "Calculated SPDIF clock of %g Hz for sample rate of %g Hz.", spdif_clock, sample_rate_hz);
-
-  double pll_freq_hz = bcm283x_is_model_pi4() ? 750e6 : 500e6;
-  double divisor = (pll_freq_hz / spdif_clock);
-
-  double divi = 0;
-  double divf = round(4096 * modf(divisor, &divi));
-  LOGD(TAG, "Calculated DIVI: %d, DIVF: %d.", (uint16_t)divi, (uint16_t)divf);
-
-  clock_configuration_t clock_config;
-  clock_config.source = clock_source_plld;       // 500 MHz
-  clock_config.mash = clock_mash_filter_1_stage; // MASH filters required for non-integer division
-  clock_config.invert = false;
-  clock_config.divi = divi;
-  clock_config.divf = divf;
-
-  bcm283x_clock_configure(clock_peripheral_pcm, &clock_config);
-  bcm283x_clock_enable(clock_peripheral_pcm, true);
+  raspdif_set_clock(sample_rate_hz);
 
   // Reset PCM peripheral
   bcm283x_pcm_reset();
@@ -339,6 +411,8 @@ static bool raspdif_buffer_samples(raspdif_buffer_t* buffer, spdif_block_t* bloc
 // frames, DTS every 512..2048; 8192 frames are ~170 ms at 48 kHz.
 #define IEC61937_TIMEOUT_FRAMES 8192
 
+static bool raspdif_non_audio = false; // IEC 61937 data is flowing
+
 /**
   @brief  Follow the input and flag IEC 61937 data (AC3/DTS passthrough) as non-audio
 
@@ -354,7 +428,6 @@ static bool raspdif_buffer_samples(raspdif_buffer_t* buffer, spdif_block_t* bloc
 */
 static void raspdif_detect_iec61937(spdif_block_t* block, raspdif_format_t format, int32_t sample_a, int32_t sample_b)
 {
-  static bool non_audio = false;
   static uint32_t frames_since_burst = 0;
 
   if (format != raspdif_format_s16le)
@@ -363,18 +436,18 @@ static void raspdif_detect_iec61937(spdif_block_t* block, raspdif_format_t forma
   if ((uint16_t)sample_a == IEC61937_PA && (uint16_t)sample_b == IEC61937_PB)
   {
     frames_since_burst = 0;
-    if (!non_audio)
+    if (!raspdif_non_audio)
     {
-      non_audio = true;
+      raspdif_non_audio = true;
       spdif_set_non_audio(block, true);
       LOGI(TAG, "IEC 61937 data detected, signalling non-audio.");
     }
     return;
   }
 
-  if (non_audio && ++frames_since_burst > IEC61937_TIMEOUT_FRAMES)
+  if (raspdif_non_audio && ++frames_since_burst > IEC61937_TIMEOUT_FRAMES)
   {
-    non_audio = false;
+    raspdif_non_audio = false;
     spdif_set_non_audio(block, false);
     LOGI(TAG, "No IEC 61937 bursts for %d frames, back to PCM.", IEC61937_TIMEOUT_FRAMES);
   }
@@ -387,7 +460,7 @@ static void raspdif_detect_iec61937(spdif_block_t* block, raspdif_format_t forma
   @param  buffer Buffer containing raw sample bytes
   @retval int32_t - Sign extended sample
 */
-static int32_t raspdif_parse_sample(raspdif_format_t format, uint8_t* buffer)
+static int32_t raspdif_parse_sample(raspdif_format_t format, const uint8_t* buffer)
 {
   if (format == raspdif_format_s16le)
     return (int16_t)(buffer[1] << 8 | buffer[0]);
@@ -401,52 +474,145 @@ static int32_t raspdif_parse_sample(raspdif_format_t format, uint8_t* buffer)
 }
 
 /**
-  @brief  Fill all buffers with white noise or zeros
+  @brief  Try to resize the input FIFO
 
-  @param  buffer_index Current buffer index to start filling from
-  @param  block SPDIF block so proper frames can be encoded
-  @param  format Format of samples
-  @param  sample_rate Sample rate to estimate latency when delaying on DMA
-  @param  keep_alive Transmit quiet white noise to keep equipment alive
+  @param  fd File descriptor of the FIFO
+  @param  size Requested size in bytes
+  @retval bool - true when done (resized or failed for good), false to retry later
+*/
+static bool raspdif_set_pipe_size(int fd, int size)
+{
+  if (fcntl(fd, F_SETPIPE_SZ, size) < 0)
+  {
+    if (errno == EBUSY)
+    {
+      static bool reported = false;
+      if (!reported)
+        LOGI(TAG, "FIFO holds more than %d bytes, will resize once the writer pauses.", size);
+      reported = true;
+      return false;
+    }
+
+    LOGW(TAG, "Unable to set pipe size to %d. Error: %s.", size, strerror(errno));
+    return true;
+  }
+
+  LOGI(TAG, "Input FIFO size: %d bytes.", fcntl(fd, F_GETPIPE_SZ));
+  return true;
+}
+
+/**
+  @brief  Index of the buffer the DMA is transmitting, from its control block address
+
+  @param  none
+  @retval uint32_t - 0..RASPDIF_BUFFER_COUNT-1
+*/
+static uint32_t raspdif_dma_index(void)
+{
+  uintptr_t current = (uintptr_t)bcm283x_dma_get_control_block(raspdif.dma_channel);
+  uintptr_t first = (uintptr_t)&raspdif.control.bus->control_blocks[0];
+  if (current < first)
+    return 0;
+
+  uintptr_t index = (current - first) / sizeof(dma_control_block_t);
+  return index < RASPDIF_BUFFER_COUNT ? (uint32_t)index : 0;
+}
+
+/**
+  @brief  Encode one whole buffer: n frames of input, the rest padding
+
+          Padding is quiet noise with keep-alive (keeps receivers awake), zeros
+          otherwise and always zeros while IEC 61937 data is flowing.
+
+  @param  index Buffer to fill
+  @param  frames Raw interleaved input frames (may be NULL when n is 0)
+  @param  block SPDIF block for channel status
+  @param  format Input sample format
+  @param  n Number of input frames, at most RASPDIF_BUFFER_SIZE
+  @param  keep_alive Pad with quiet noise instead of zeros
   @retval none
 */
-static void raspdif_fill_buffers(uint8_t buffer_index, spdif_block_t* block, raspdif_format_t format, double sample_rate, bool keep_alive)
+static void raspdif_encode_buffer(uint32_t index, const uint8_t* frames, spdif_block_t* block, raspdif_format_t format, size_t n, bool keep_alive)
 {
-  // Seed random generator if using keep-alive
-  if (keep_alive)
-    srand(time(NULL));
+  raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[index];
+  size_t sample_size = (format == raspdif_format_s24le) ? 3 : sizeof(int16_t);
+  bool noise = keep_alive && !raspdif_non_audio;
 
-// Macro to generate samples for fill
-#define FILL_SAMPLE (keep_alive ? ((rand() % 10) - 5) : 0)
-
-  // Zero fill remainder of current buffer
-  raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-  while (!raspdif_buffer_samples(buffer, block, format, FILL_SAMPLE, FILL_SAMPLE))
+  for (size_t i = 0; i < RASPDIF_BUFFER_SIZE; i++)
   {
-  }
-
-  buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
-
-  // Fill all the buffers, while waiting on DMA if necessary
-  uint8_t fill_count = 0;
-  while (fill_count < RASPDIF_BUFFER_COUNT)
-  {
-    if (bcm283x_dma_get_control_block(raspdif.dma_channel) == &raspdif.control.bus->control_blocks[buffer_index])
+    int32_t sample_a = 0;
+    int32_t sample_b = 0;
+    if (i < n)
     {
-      // If DMA is using current buffer, delay by approx 1 buffer's duration
-      microsleep(1e6 * (RASPDIF_BUFFER_SIZE / sample_rate));
-      continue;
+      sample_a = raspdif_parse_sample(format, &frames[i * 2 * sample_size]);
+      sample_b = raspdif_parse_sample(format, &frames[i * 2 * sample_size + sample_size]);
+    }
+    else if (noise)
+    {
+      sample_a = (rand() % 10) - 5;
+      sample_b = (rand() % 10) - 5;
     }
 
-    raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-    while (!raspdif_buffer_samples(buffer, block, format, FILL_SAMPLE, FILL_SAMPLE))
-    {
-    }
-
-    buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
-
-    fill_count++;
+    // Padding counts too: after passthrough ends and the input pauses, the
+    // non-audio flag must still time out before the next PCM arrives.
+    raspdif_detect_iec61937(block, format, sample_a, sample_b);
+    raspdif_buffer_samples(buffer, block, format, sample_a, sample_b);
   }
+}
+
+/**
+  @brief  Sleep until the next tick on an absolute monotonic schedule
+
+          Absolute deadlines do not drift; after a long stall the schedule
+          restarts from now instead of firing a burst of catch-up ticks.
+
+  @param  wake Deadline, advanced by step_ns
+  @param  step_ns Tick length in nanoseconds
+  @retval none
+*/
+static void raspdif_sleep_until(struct timespec* wake, long step_ns)
+{
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+
+  wake->tv_nsec += step_ns;
+  while (wake->tv_nsec >= 1000000000L)
+  {
+    wake->tv_nsec -= 1000000000L;
+    wake->tv_sec++;
+  }
+
+  if (wake->tv_sec < now.tv_sec || (wake->tv_sec == now.tv_sec && wake->tv_nsec < now.tv_nsec))
+  {
+    *wake = now;
+    return;
+  }
+
+  clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, wake, NULL);
+}
+
+/**
+  @brief  Run with real-time priority and locked memory
+
+          With a small lead a late wake-up is audible (the DMA replays old
+          data), so the scheduler must not let other work delay raspdif.
+
+  @param  priority SCHED_FIFO priority, 0 to keep the normal scheduler
+  @retval none
+*/
+static void raspdif_realtime(int priority)
+{
+  if (priority <= 0)
+    return;
+
+  struct sched_param param = {.sched_priority = priority};
+  if (sched_setscheduler(0, SCHED_FIFO, &param) != 0)
+    LOGW(TAG, "Unable to set SCHED_FIFO %d. Error: %s.", priority, strerror(errno));
+  else
+    LOGI(TAG, "Real-time priority %d (SCHED_FIFO).", priority);
+
+  if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0)
+    LOGW(TAG, "Unable to lock memory. Error: %s.", strerror(errno));
 }
 
 /**
@@ -502,6 +668,13 @@ void register_signal_handler()
 */
 int main(int argc, char* argv[])
 {
+  // Line-buffer the log: under systemd stdout is a pipe and would otherwise
+  // hold messages back until 4 KiB have accumulated.
+  setvbuf(stdout, NULL, _IOLBF, 0);
+
+  // Keep-alive noise
+  srand(time(NULL));
+
   raspdif_arguments_t arguments;
   memset(&arguments, 0, sizeof(raspdif_arguments_t));
 
@@ -510,6 +683,7 @@ int main(int argc, char* argv[])
   arguments.format = RASPDIF_DEFAULT_FORMAT;
   arguments.keep_alive = true;
   arguments.dma_channel = -1;
+  arguments.rt_priority = 50;
 
   // Parse command line args
   struct argp argp = {options, parse_opt, NULL, NULL};
@@ -549,108 +723,136 @@ int main(int argc, char* argv[])
   // Populate each frame with channel status data
   spdif_populate_channel_status(&block);
 
-  // Open the target file or stdin
-  FILE* file = NULL;
-  if (arguments.file)
-    file = fopen(arguments.file, "r+b"); // Open with writing to prevent EOF when FIFO is empty
-  else
-    file = freopen(NULL, "rb", stdin);
+  // Open the input: a file/FIFO or stdin
+  size_t sample_size = (arguments.format == raspdif_format_s24le) ? 3 : sizeof(int16_t);
+  input_t* input = input_open_fd(arguments.file, 2 * sample_size, 2 * RASPDIF_BUFFER_SIZE);
 
-  // Failed to open file
-  if (file == NULL)
-    LOGF(TAG, "Unable to open file. Error: %s.", strerror(errno));
+  if (input == NULL)
+    LOGF(TAG, "Unable to open input.");
+  raspdif.input = input;
 
-  LOGI(TAG, "Estimated latency: %g seconds.", (RASPDIF_BUFFER_COUNT - 1) * (RASPDIF_BUFFER_SIZE / arguments.sample_rate));
-  LOGI(TAG, "Waiting for data...");
-
-  // Determine sample size in bytes
-  uint8_t sample_size = (arguments.format == raspdif_format_s24le) ? 3 : sizeof(int16_t);
-
-  // Pre-load the buffers
-  uint8_t buffer_index = 0;
-  uint8_t samples[2 * sizeof(int32_t)] = {0};
-  while (fread(samples, sample_size, 2, file) > 0 && buffer_index < RASPDIF_BUFFER_COUNT)
+  // A full FIFO is latency the writer (e.g. ALSA's file plugin) never reports.
+  // The kernel refuses to shrink a pipe that holds more data than the new size
+  // (EBUSY), e.g. when the writer kept playing across a restart of raspdif.
+  // Then retry while transmitting; it succeeds once the writer pauses.
+  bool pipe_size_pending = false;
+  if (arguments.pipe_size > 0)
   {
-    // Parse sample buffer in proper format
-    int32_t sample_a = raspdif_parse_sample(arguments.format, &samples[0]);
-    int32_t sample_b = raspdif_parse_sample(arguments.format, &samples[sample_size]);
-    raspdif_detect_iec61937(&block, arguments.format, sample_a, sample_b);
-
-    raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-    bool full = raspdif_buffer_samples(buffer, &block, arguments.format, sample_a, sample_b);
-
-    if (full)
-      buffer_index++;
+    struct stat st;
+    int fd = input_fd(input);
+    if (fd >= 0 && fstat(fd, &st) == 0 && S_ISFIFO(st.st_mode))
+      pipe_size_pending = !raspdif_set_pipe_size(fd, arguments.pipe_size);
+    else
+      LOGW(TAG, "--pipe-size given, but the input is not a FIFO.");
   }
 
-  LOGI(TAG, "Transmitting...");
+  // Lead: number of buffers kept queued ahead of the DMA. It, not the ring
+  // size, sets the latency; the rest of the ring is slack against late wake-ups.
+  // At most COUNT - 2: "ahead" is taken modulo COUNT, so with COUNT - 1 the
+  // loop would never see "enough queued" and would overwrite unplayed buffers.
+  uint32_t lead = arguments.lead ? arguments.lead : RASPDIF_DEFAULT_LEAD;
+  if (lead > RASPDIF_BUFFER_COUNT - 2)
+    lead = RASPDIF_BUFFER_COUNT - 2;
+  double buffer_s = RASPDIF_BUFFER_SIZE / arguments.sample_rate;
+  LOGI(TAG, "Ring %d x %d frames, lead %u: output latency %.1f..%.1f ms.", RASPDIF_BUFFER_COUNT, RASPDIF_BUFFER_SIZE, lead,
+       1e3 * (lead - 1) * buffer_s, 1e3 * lead * buffer_s);
 
-  // Enable DMA and PCM to start transmit
+  raspdif_realtime(arguments.rt_priority);
+
+  // Fill the whole ring with silence, then start the DMA at control block 0
+  for (uint32_t i = 0; i < RASPDIF_BUFFER_COUNT; i++)
+    raspdif_encode_buffer(i, NULL, &block, arguments.format, 0, false);
+
+  LOGI(TAG, "Transmitting...");
   bcm283x_dma_enable(raspdif.dma_channel, true);
   bcm283x_pcm_enable(true, false);
 
-  // Set stndin to nonblocking
-  fcntl(fileno(file), F_SETFL, O_NONBLOCK);
+  uint32_t next = 1; // next buffer to fill
+  uint32_t underruns = 0;
+  uint32_t late = 0;
+  bool streaming = false;
+  uint8_t frames[RASPDIF_BUFFER_SIZE * 2 * sizeof(int32_t)];
+  long tick_ns = (long)(1e9 * buffer_s / 2);
+  struct timespec wake;
+  clock_gettime(CLOCK_MONOTONIC, &wake);
 
-  // Reset to first buffer.
-  buffer_index = 0;
+  // --disable-pcm-on-idle: stop the PCM transmitter after a second without
+  // input. The DMA then stalls on DREQ; the first input frame restarts it.
+  bool pcm_off = false;
+  uint32_t idle_buffers = 0;
 
-  // Read file until EOS. Note: files opened in r+ will not emit EOF
-  while (!feof(file))
+  while (true)
   {
-    if (bcm283x_dma_get_control_block(raspdif.dma_channel) == &raspdif.control.bus->control_blocks[buffer_index])
+    uint32_t head = raspdif_dma_index();
+    uint32_t ahead = (next + RASPDIF_BUFFER_COUNT - head) % RASPDIF_BUFFER_COUNT;
+    if (ahead == 0)
     {
-      // If DMA is using current buffer, delay by approx 1 buffer's duration
-      microsleep(1e6 * (RASPDIF_BUFFER_SIZE / arguments.sample_rate));
+      // The DMA reached the buffer we were about to fill: we woke up too late
+      // and it replayed old data. Continue right behind it.
+      late++;
+      LOGD(TAG, "Late wake-up (%u), resyncing.", late);
+      next = (head + 1) % RASPDIF_BUFFER_COUNT;
+      ahead = 1;
+    }
+
+    size_t available = input_available(input);
+    bool eof = input_eof(input);
+
+    if (pcm_off && available > 0)
+    {
+      bcm283x_pcm_enable(true, false);
+      pcm_off = false;
+      idle_buffers = 0;
+      LOGD(TAG, "Input again, PCM enabled.");
+    }
+
+    // Enough queued: sleep. Input short but a queued buffer still in hand:
+    // wait for the writer instead of padding with silence.
+    if (ahead > lead || (available < RASPDIF_BUFFER_SIZE && ahead > 1 && !eof))
+    {
+      if (pipe_size_pending)
+        pipe_size_pending = !raspdif_set_pipe_size(input_fd(input), arguments.pipe_size);
+
+      raspdif_sleep_until(&wake, tick_ns);
       continue;
     }
 
-    // If read fails (or would block) pause the stream
-    if (fread(samples, sample_size, 2, file) != 2 && !feof(file))
+    if (eof && available == 0)
+      break;
+
+    size_t n = input_read(input, frames, RASPDIF_BUFFER_SIZE);
+    if (n < RASPDIF_BUFFER_SIZE && streaming && !eof) // a short last buffer is no underrun
     {
-      LOGD(TAG, "Buffer underrun.");
-
-      // Zero fill the sample buffers for silence
-      raspdif_fill_buffers(buffer_index, &block, arguments.format, arguments.sample_rate, arguments.keep_alive);
-
-      if (arguments.pcm_disable)
-      {
-        bcm283x_pcm_enable(false, false);
-        LOGD(TAG, "PCM disabled.");
-      }
-
-      // Wait for file to be readable
-      struct pollfd poll_list;
-      poll_list.fd = fileno(file);
-      poll_list.events = POLLIN;
-      poll(&poll_list, 1, -1);
-
-      if (arguments.pcm_disable)
-      {
-        bcm283x_pcm_enable(true, false);
-        LOGD(TAG, "PCM enabled.");
-      }
-
-      // Resume read loop
-      LOGD(TAG, "Data available.");
-      continue;
+      underruns++;
+      LOGD(TAG, "Buffer underrun (%u), padded %zu frames.", underruns, RASPDIF_BUFFER_SIZE - n);
     }
+    streaming = n > 0;
 
-    // Parse sample buffer in proper format
-    int32_t sample_a = raspdif_parse_sample(arguments.format, &samples[0]);
-    int32_t sample_b = raspdif_parse_sample(arguments.format, &samples[sample_size]);
-    raspdif_detect_iec61937(&block, arguments.format, sample_a, sample_b);
+    raspdif_encode_buffer(next, frames, &block, arguments.format, n, arguments.keep_alive);
+    next = (next + 1) % RASPDIF_BUFFER_COUNT;
 
-    raspdif_buffer_t* buffer = &raspdif.control.virtual->buffers[buffer_index];
-    bool full = raspdif_buffer_samples(buffer, &block, arguments.format, sample_a, sample_b);
-
-    if (full)
-      buffer_index = (buffer_index + 1) % RASPDIF_BUFFER_COUNT;
+    idle_buffers = n > 0 ? 0 : idle_buffers + 1;
+    if (arguments.pcm_disable && !pcm_off && idle_buffers * buffer_s >= 1.0)
+    {
+      bcm283x_pcm_enable(false, false);
+      pcm_off = true;
+      LOGD(TAG, "No input for a second, PCM disabled.");
+    }
   }
 
-  // TODO How do we wait until the end of the stream
+  // End of a file or stdin: queue silence behind the last audio so the DMA
+  // does not replay old ring contents, then let everything play out (#4)
+  uint32_t head = raspdif_dma_index();
+  for (uint32_t i = 0; i <= lead && (next + RASPDIF_BUFFER_COUNT - head) % RASPDIF_BUFFER_COUNT != 0; i++)
+  {
+    raspdif_encode_buffer(next, NULL, &block, arguments.format, 0, false);
+    next = (next + 1) % RASPDIF_BUFFER_COUNT;
+  }
+  double tail_s = (lead + 1) * buffer_s; // may exceed a second: no microsleep (asserts < 1 s)
+  struct timespec tail = {.tv_sec = (time_t)tail_s, .tv_nsec = (long)((tail_s - (time_t)tail_s) * 1e9)};
+  clock_nanosleep(CLOCK_MONOTONIC, 0, &tail, NULL);
 
-  // Shutdown in a safe manner
+  // Shutdown in a safe manner (also closes the input)
   raspdif_shutdown();
 
   return 0;
