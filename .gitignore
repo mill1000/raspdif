@@ -1,3 +1,4 @@
 build/
 include/git_version.h
 .vscode/
+alsa/*.so

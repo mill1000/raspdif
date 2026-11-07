@@ -98,17 +98,85 @@ sudo systemctl start raspdif.service
 
 Playback is now as simple as `aplay some_wav_file.wav` or `gst-play-1.0 some_media_file.flac`.
 
+## ALSA Plugin (low latency, lip sync, AC3/DTS passthrough)
+The FIFO above works, but the writer never learns how much audio is still queued (the FIFO plus
+raspdif's DMA ring), so video players drift out of lip sync by that amount. The optional ALSA
+plugin in `alsa/` is a real playback device instead: it writes into a shared-memory ring that
+raspdif reads with `--shm`, and reports the true delay (ring + DMA) to the application. Kodi, mpv
+and friends then keep lip sync on their own. It offers S16_LE stereo at 44.1 or 48 kHz; raspdif
+retunes its clock when the rate changes.
+
+Build it (only the ALSA headers are needed, e.g. `libasound2-dev`):
+```
+cd alsa && make
+sudo cp libasound_module_pcm_raspdif.so /usr/lib/$(gcc -dumpmachine)/alsa-lib/
+```
+
+Configure ALSA, e.g. in `/etc/asound.conf`:
+```
+pcm_type.raspdif {
+  lib "/usr/lib/aarch64-linux-gnu/alsa-lib/libasound_module_pcm_raspdif.so"
+}
+
+pcm.hdmi_raspdif {
+  type raspdif
+  hint {
+    show on
+    description "S/PDIF (raspdif)"
+  }
+}
+```
+
+The name differs from the FIFO device `raspdif` above so both can coexist; it starts with `hdmi`
+for Kodi (see below). Then run raspdif with `--shm` (e.g. `ExecStart=/usr/local/bin/raspdif --shm
+--rate 48000` in the service) and play with `aplay -D hdmi_raspdif ...`.
+
+- raspdif must be running before a player opens the device; otherwise opening fails (`ENODEV`).
+- The shared-memory file is created with mode 0660 and group `audio` if that group exists (0600
+  otherwise), so players need to run as root or in group `audio`.
+- raspdif can be restarted while a player is running; the ring survives.
+- One player at a time: a second one gets `EBUSY`. Software mixing via `dmix` is not possible (#15).
+
+### Low-latency build
+By default raspdif keeps one 2048-frame buffer queued ahead of the one being sent (~43 ms at
+48 kHz; before this change it was two, ~85 ms). Many small buffers with a short lead get this down
+to a few milliseconds:
+```
+make CFLAGS="-Wall -Wno-missing-braces -DRASPDIF_BUFFER_SIZE=64 -DRASPDIF_BUFFER_COUNT=32 -DRASPDIF_DEFAULT_LEAD=4"
+```
+That is 4-5 ms of DMA latency on a Pi 4 at 48 kHz. raspdif runs with `SCHED_FIFO` (`--rt-priority`)
+so a late wake-up does not replay old data.
+
+### AC3/DTS passthrough
+raspdif recognizes IEC 61937 data (the burst preamble a player sends in passthrough mode) and
+sets the non-audio bit in the channel status, so the receiver decodes Dolby Digital or DTS instead
+of playing noise. 16 bit input only. Note for Kodi 21: it decides on passthrough by the ALSA device
+name, so name the PCM `hdmi_raspdif` (any name starting with `hdmi`) to get AC3/DTS passthrough and
+AC3 transcoding offered. E-AC3, TrueHD and DTS-HD do not fit through S/PDIF at 48 kHz.
+
 ## Optional Arguments
 Check `raspdif --help` for additional optional arguments to tweak behavior.
 ```
 Usage: raspdif [OPTION...]
 
-  -d, --disable-pcm-on-idle  Disable PCM during underrun.
+  -c, --dma-channel=CHANNEL  DMA channel to use. Default: 10 on Pi 4, 13
+                             otherwise
+  -d, --disable-pcm-on-idle  Stop the PCM transmitter after one second without
+                             input.
   -f, --format=FORMAT        Set audio sample format to s16le or s24le.
                              Default: s16le
   -i, --input=INPUT_FILE     Read data from file instead of stdin.
   -k, --no-keep-alive        Don't send silent noise during underrun.
+  -l, --lead=BUFFERS         Buffers kept queued ahead of the DMA (1 to buffer
+                             count minus 2); sets the output latency.
+  -p, --pipe-size=BYTES      FIFO input: shrink the pipe to BYTES to cut
+                             latency (kernel rounds up to a power-of-two number
+                             of pages).
   -r, --rate=RATE            Set audio sample rate. Default: 44.1 kHz
+  -s, --shm                  Read from the ALSA plugin's shared-memory ring
+                             (/dev/shm/raspdif) instead of a file or stdin.
+  -t, --rt-priority=PRIO     SCHED_FIFO priority, 0 for the normal scheduler.
+                             Default: 50
   -v, --verbose              Enable debug messages.
   -?, --help                 Give this help list
       --usage                Give a short usage message
@@ -191,3 +259,10 @@ Thanks to @marcoalexcampos0 for digging into this and testing.
 ## TOSLINK Optical Output
 Thanks to @tlalexander.
 > I have discovered that if you hook up a red LED and a resistor (I used about 600 ohms) to the output pin and ground, this works for optical audio output.
+
+A TOSLINK transmitter module works too and couples better into the fiber. One taken from an old
+sound card's S/PDIF bracket (pins: data, +5 V, GND) runs from the Pi's 5 V pin, with its data input
+driven directly by GPIO21 at 3.3 V. S/PDIF slot brackets for motherboard headers (3 pins: +5 V,
+data, GND, usually with an RCA output as well) are cheap and wire up the same way; thanks to
+@amuckart for the tip and a tested TOSLINK bracket (#23). Check the pinout and whether 3.3 V is a
+valid high for the module before connecting.

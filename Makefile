@@ -52,9 +52,9 @@ uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/${TARGET_NAME}
 
 check-format:
-	clang-format-16 --Werror -n $(SRCS) $(INCS)
+	clang-format-16 --Werror -n $(SRCS) $(INCS) $(wildcard alsa/*.c)
 
 format:
-	clang-format-16 -i $(SRCS) $(INCS)
+	clang-format-16 -i $(SRCS) $(INCS) $(wildcard alsa/*.c)
 
 -include $(DEPS)
