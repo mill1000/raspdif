@@ -34,6 +34,7 @@ typedef struct raspdif_arguments_t
   bool verbose;
   bool keep_alive;
   bool pcm_disable;
+  int dma_channel; // -1 = model default
   double sample_rate;
   raspdif_format_t format;
 } raspdif_arguments_t;
@@ -46,6 +47,7 @@ static struct argp_option options[] = {
   {"format", 'f', "FORMAT", 0, "Set audio sample format to s16le or s24le. Default: s16le"},
   {"no-keep-alive", 'k', 0, 0, "Don't send silent noise during underrun."},
   {"disable-pcm-on-idle", 'd', 0, 0, "Disable PCM during underrun."},
+  {"dma-channel", 'c', "CHANNEL", 0, "DMA channel to use. Default: 10 on Pi 4, 13 otherwise"},
   {"verbose", 'v', 0, 0, "Enable debug messages."},
   {0},
 };
@@ -95,6 +97,19 @@ static error_t parse_opt(int key, char* arg, struct argp_state* state)
     case 'd':
       arguments->pcm_disable = true;
       break;
+
+    case 'c':
+    {
+      char* end = NULL;
+      long channel = strtol(arg, &end, 10);
+      if (end == arg || *end != '\0' || channel < 0 || channel >= dma_channel_max)
+      {
+        LOGF(TAG, "Invalid DMA channel '%s'", arg);
+        return EINVAL;
+      }
+      arguments->dma_channel = (int)channel;
+      break;
+    }
 
     default:
       return ARGP_ERR_UNKNOWN;
@@ -173,6 +188,11 @@ static void raspdif_init(dma_channel_t dma_channel, double sample_rate_hz)
   // Save DMA channel
   raspdif.dma_channel = dma_channel;
   LOGD(TAG, "Initializing with DMA channel %d.", dma_channel);
+
+  // The kernel's DMA engine hands out channels from the same pool
+  // (brcm,dma-channel-mask). Never take over a channel that is running.
+  if (bcm283x_dma_active(dma_channel))
+    LOGF(TAG, "DMA channel %d is active, probably in use by the kernel. Choose another with --dma-channel.", dma_channel);
 
   // Allocate buffers and control blocks in physical memory
   memory_physical_t memory = memory_allocate_physical(sizeof(raspdif_control_t));
@@ -441,6 +461,7 @@ int main(int argc, char* argv[])
   arguments.sample_rate = RASPDIF_DEFAULT_SAMPLE_RATE;
   arguments.format = RASPDIF_DEFAULT_FORMAT;
   arguments.keep_alive = true;
+  arguments.dma_channel = -1;
 
   // Parse command line args
   struct argp argp = {options, parse_opt, NULL, NULL};
@@ -458,7 +479,19 @@ int main(int argc, char* argv[])
 #endif
 
   // Initialize hardware and buffers
-  dma_channel_t dma_channel = bcm283x_is_model_pi4() ? dma_channel_5 : dma_channel_13;
+  // Pi 4: channels 11-14 are DMA4 engines with a different register layout,
+  // and the kernel allocates 0-10 from the bottom up. Channel 10 (DMA Lite,
+  // plenty for S/PDIF) is the last one it would hand out; channel 5 was the
+  // fourth.
+  bool is_pi4 = bcm283x_is_model_pi4();
+  if (is_pi4 && arguments.dma_channel > dma_channel_10)
+    LOGF(TAG, "DMA channel %d is a DMA4 channel on the Pi 4 and not supported.", arguments.dma_channel);
+
+  dma_channel_t dma_channel;
+  if (arguments.dma_channel >= 0)
+    dma_channel = (dma_channel_t)arguments.dma_channel;
+  else
+    dma_channel = is_pi4 ? dma_channel_10 : dma_channel_13;
   raspdif_init(dma_channel, arguments.sample_rate);
 
   // Allocate storage for a SPDIF block
