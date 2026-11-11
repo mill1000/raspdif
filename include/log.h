@@ -31,7 +31,8 @@ typedef enum
   #LETTER ": %s: " FORMAT LOG_RESET_COLOR "\n"
 
 #define _LOG(LEVEL, FORMAT, ...)             \
-  do {                                       \
+  do                                         \
+  {                                          \
     log_print(LEVEL, FORMAT, ##__VA_ARGS__); \
   } while (0)
 

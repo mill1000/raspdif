@@ -31,7 +31,7 @@ $(TARGET): $(OBJS)
 
 $(BUILD_DIR)/%.c.o: %.c $(INC_BASE)/git_version.h
 	@$(MKDIR_P) $(dir $@)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@	
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 $(INC_BASE)/git_version.h: .FORCE
 	echo "#define GIT_VERSION \"Commit: $(shell git describe --dirty --always --tags)\"" > $@-new; \
@@ -52,9 +52,9 @@ uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/${TARGET_NAME}
 
 check-format:
-	clang-format-16 --Werror -n $(SRCS) $(INCS)
+	clang-format --Werror -n $(SRCS) $(INCS)
 
 format:
-	clang-format-16 -i $(SRCS) $(INCS)
+	clang-format -i $(SRCS) $(INCS)
 
 -include $(DEPS)
