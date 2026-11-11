@@ -178,3 +178,19 @@ void spdif_populate_channel_status(spdif_block_t* block)
     frame->b.channel_status = channel_status_b.raw[i / 8] >> (i % 8);
   }
 }
+
+/**
+  @brief  Mark the stream as non-audio (IEC 61937 data, e.g. AC3/DTS) or as PCM
+
+          Channel status bit 1 ("compressed" above) travels in frame 1 of every
+          block. The change takes effect with the next block that is encoded.
+
+  @param  block SPDIF block with populated channel status
+  @param  non_audio true for IEC 61937 data, false for linear PCM
+  @retval none
+*/
+void spdif_set_non_audio(spdif_block_t* block, bool non_audio)
+{
+  block->frames[1].a.channel_status = non_audio;
+  block->frames[1].b.channel_status = non_audio;
+}
