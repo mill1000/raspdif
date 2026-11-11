@@ -17,18 +17,18 @@ INC_DIRS := $(shell find $(INC_BASE) -type d) /opt/vc/include
 INC_FLAGS := $(addprefix -I ,$(INC_DIRS))
 
 LDFLAGS := -L /opt/vc/lib -lm -lpthread -lstdc++
-CPPFLAGS ?= $(INC_FLAGS) -MMD 
+CPPFLAGS ?= $(INC_FLAGS) -MMD
 CFLAGS ?= -Wall -Wno-missing-braces
 CC = clang
 
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CC) $(LDFLAGS) $^ -o $@ 
+	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD_DIR)/%.c.o: %.c $(INC_BASE)/git_version.h
 	@$(MKDIR_P) $(dir $@)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@	
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 $(INC_BASE)/git_version.h: .FORCE
 	echo "#define GIT_VERSION \"Commit: $(shell git describe --dirty --always --tags)\"" > $@-new; \
@@ -49,9 +49,9 @@ uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/${TARGET_NAME}
 
 check-format:
-	clang-format-16 --Werror -n $(SRCS) $(INCS)
+	clang-format --Werror -n $(SRCS) $(INCS)
 
 format:
-	clang-format-16 -i $(SRCS) $(INCS)
+	clang-format -i $(SRCS) $(INCS)
 
 -include $(DEPS)
