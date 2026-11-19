@@ -196,4 +196,4 @@ Thanks to @tlalexander.
 ## Similar Projects
 The following is a collection of similar or related projects to raspdif.
 * [kiffie/rpi-i2s-spdif](https://github.com/kiffie/rpi-i2s-spdif) - The OG kernel module for software S/PDIF on Raspberry Pis.
-* [ehb/rpi-gpio-spdif](https://github.com/ehb/rpi-gpio-spdif) - A new kernel module loosely based on raspdif.
+* [ehb/rpi-gpio-spdif](https://github.com/ehb/rpi-gpio-spdif) - S/PDIF via a device tree overlay and an ALSA plugin.
