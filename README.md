@@ -11,6 +11,7 @@ raspdif accepts 16 or 24 bit PCM samples from stdin, a file, or a FIFO (named pi
 - [Signal Levels](#signal-levels)
 - [Alternate GPIO](#alternate-gpio)
 - [TOSLINK Optical Output](#toslink-optical-output)
+- [Similar Projects](#similar-projects)
 
 ## Building
 ### Prerequisites
@@ -191,3 +192,8 @@ Thanks to @marcoalexcampos0 for digging into this and testing.
 ## TOSLINK Optical Output
 Thanks to @tlalexander.
 > I have discovered that if you hook up a red LED and a resistor (I used about 600 ohms) to the output pin and ground, this works for optical audio output.
+
+## Similar Projects
+The following is a collection of similar or related projects to raspdif.
+* [kiffie/rpi-i2s-spdif](https://github.com/kiffie/rpi-i2s-spdif) - The OG kernel module for software S/PDIF on Raspberry Pis.
+* [ehb/rpi-gpio-spdif](https://github.com/ehb/rpi-gpio-spdif) - A new kernel module loosely based on raspdif.
